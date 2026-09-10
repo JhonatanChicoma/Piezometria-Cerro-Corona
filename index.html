@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitoreo Piezométrico — Cerro Corona</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-adapter-date-fns/3.0.0/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="piezo_data.js"></script>
+<style>
+  :root{
+    --bg:#10151c;
+    --panel:#1a222c;
+    --panel-2:#212b37;
+    --border:#2e3a47;
+    --text:#e7ecf1;
+    --text-dim:#8fa0b3;
+    --text-faint:#5f7086;
+    --accent:#f0a24e;
+    --accent-dim:#8a6633;
+    --up:#e2604f;
+    --down:#3fb389;
+    --stable:#7e8fa5;
+    --nodata:#3d4a58;
+    --radius:10px;
+    --mono:'IBM Plex Mono','SFMono-Regular',Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);height:100%;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:6px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+
+  .app{display:flex;flex-direction:column;min-height:100vh;}
+
+  header.top{
+    padding:18px 24px 0 24px;
+    border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg,#141b23,#10151c);
+  }
+  .top-row{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;margin-bottom:14px;}
+  .title-block h1{font-size:19px;margin:0 0 2px 0;font-weight:650;letter-spacing:.2px;}
+  .title-block .sub{color:var(--text-dim);font-size:12.5px;}
+  .sync-info{font-size:11.5px;color:var(--text-faint);text-align:right;font-family:var(--mono);}
+  .sync-info b{color:var(--accent);font-weight:600;}
+
+  .chips{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+  .chip{
+    background:var(--panel);border:1px solid var(--border);border-radius:8px;
+    padding:8px 13px;min-width:96px;
+  }
+  .chip .n{font-family:var(--mono);font-size:18px;font-weight:600;line-height:1.1;}
+  .chip .l{font-size:10.5px;color:var(--text-dim);margin-top:2px;text-transform:none;}
+  .chip.up .n{color:var(--up);}
+  .chip.down .n{color:var(--down);}
+  .chip.stable .n{color:var(--stable);}
+  .chip.warn .n{color:var(--accent);}
+
+  nav.tabs{display:flex;gap:2px;}
+  nav.tabs button{
+    background:transparent;border:none;color:var(--text-dim);
+    padding:10px 18px;font-size:13.5px;cursor:pointer;border-bottom:2px solid transparent;
+    font-family:var(--sans);font-weight:500;
+  }
+  nav.tabs button:hover{color:var(--text);}
+  nav.tabs button.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+  main{flex:1;padding:18px 24px 30px 24px;}
+  section.tab{display:none;}
+  section.tab.active{display:block;}
+
+  /* ---------- UBICACION ---------- */
+  .ubicacion-layout{display:grid;grid-template-columns:260px 1fr;gap:18px;align-items:start;}
+  .map-panel .btn-row{display:flex;gap:6px;margin-bottom:10px;}
+  .map-panel .btn-row .btn{flex:1;padding:6px 8px;font-size:11px;text-align:center;}
+  .map-panel .pz-list{max-height:52vh;}
+  .map-panel .pz-list label{justify-content:space-between;}
+  .map-panel .pz-list .pz-left{display:flex;align-items:center;gap:8px;overflow:hidden;}
+  .map-panel .pz-list .pz-left span.name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  .map-toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:12px;}
+  .type-filters{display:flex;gap:8px;flex-wrap:wrap;}
+  .type-filters label{
+    display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim);
+    background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:5px 12px 5px 9px;cursor:pointer;
+  }
+  .type-filters input{accent-color:var(--accent);}
+  .legend{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--text-dim);flex-wrap:wrap;}
+  .legend .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;}
+  .legend label{display:flex;align-items:center;gap:5px;cursor:pointer;}
+  .legend input{accent-color:var(--accent);}
+  .zoom-ctl{display:flex;gap:6px;}
+  .zoom-ctl button{
+    background:var(--panel);border:1px solid var(--border);color:var(--text);
+    width:30px;height:30px;border-radius:7px;cursor:pointer;font-size:15px;
+  }
+  .zoom-ctl button:hover{border-color:var(--accent);color:var(--accent);}
+
+  .map-outer{
+    border:1px solid var(--border);border-radius:var(--radius);overflow:auto;
+    background:#0b0e12;max-height:74vh;position:relative;
+  }
+  .map-scale{position:relative;transform-origin:0 0;width:2000px;}
+  .map-scale img{display:block;width:100%;height:auto;user-select:none;-webkit-user-drag:none;}
+
+  .marker-wrap{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;gap:5px;}
+  .marker-wrap.hidden-type,.marker-wrap.hidden-pz{display:none;}
+  .marker{
+    position:relative;width:14px;height:14px;min-width:14px;border-radius:50%;
+    cursor:pointer;border:2px solid rgba(10,14,18,.85);
+    box-shadow:0 0 0 2px rgba(255,255,255,.15);
+  }
+  .marker::after{
+    content:'';position:absolute;inset:-7px;border-radius:50%;
+    border:1px solid currentColor;opacity:0;transition:opacity .15s;
+  }
+  .marker:hover::after{opacity:.55;}
+  .marker.up{background:var(--up);color:var(--up);}
+  .marker.down{background:var(--down);color:var(--down);}
+  .marker.stable{background:var(--stable);color:var(--stable);}
+  .marker.nodata{background:var(--nodata);color:var(--nodata);}
+
+  .marker-label{
+    pointer-events:none;background:rgba(11,14,18,.82);border:1px solid var(--border);
+    border-radius:5px;padding:2px 6px;font-size:9.5px;line-height:1.25;white-space:nowrap;
+    box-shadow:0 2px 6px rgba(0,0,0,.4);
+  }
+  .marker-label b{display:block;font-size:9.5px;color:var(--text);font-weight:600;}
+  .marker-label span{display:block;font-family:var(--mono);}
+  .marker-label.up span{color:var(--up);}
+  .marker-label.down span{color:var(--down);}
+  .marker-label.stable span{color:var(--stable);}
+  .marker-label.nodata span{color:var(--text-faint);}
+  .markers-layer.labels-off .marker-label{display:none;}
+
+  .tooltip{
+    position:absolute;z-index:50;background:#0d1319;border:1px solid var(--border);
+    border-radius:8px;padding:10px 13px;font-size:12px;min-width:190px;
+    pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.5);display:none;
+  }
+  .tooltip h4{margin:0 0 6px 0;font-size:13.5px;color:var(--accent);font-family:var(--mono);}
+  .tooltip .row{display:flex;justify-content:space-between;gap:16px;color:var(--text-dim);margin:2px 0;}
+  .tooltip .row b{color:var(--text);font-family:var(--mono);font-weight:500;}
+
+  /* ---------- ANALISIS ---------- */
+  .analisis-layout{display:grid;grid-template-columns:280px 1fr;gap:18px;align-items:start;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px;}
+  .panel h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim);margin:0 0 10px 0;font-weight:600;}
+  .search-box{
+    width:100%;background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    padding:8px 10px;border-radius:7px;font-size:12.5px;margin-bottom:10px;font-family:var(--sans);
+  }
+  .pz-list{max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;}
+  .pz-list label{
+    display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 6px;border-radius:6px;cursor:pointer;color:var(--text-dim);
+  }
+  .pz-list label:hover{background:var(--panel-2);color:var(--text);}
+  .pz-list input{accent-color:var(--accent);}
+  .pz-list .swatch{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+  .date-range{display:flex;gap:8px;margin-top:12px;}
+  .date-range input{
+    flex:1;background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    padding:6px 8px;border-radius:6px;font-size:11.5px;font-family:var(--mono);
+  }
+  .toggle-row{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:var(--text-dim);}
+
+  .chart-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
+  .chart-card canvas{max-height:440px;}
+  .stat-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
+  .stat-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;border-left:3px solid var(--stable);}
+  .stat-card .pzname{font-family:var(--mono);font-size:12.5px;color:var(--accent);margin-bottom:4px;}
+  .stat-card .val{font-family:var(--mono);font-size:16px;font-weight:600;}
+  .stat-card .delta{font-size:11px;color:var(--text-dim);margin-top:2px;}
+  .empty-msg{color:var(--text-faint);font-size:13px;padding:30px;text-align:center;}
+
+  /* ---------- RESUMEN ---------- */
+  .resumen-toolbar{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap;}
+  .resumen-toolbar .search-box{max-width:280px;margin-bottom:0;}
+  .btn{
+    background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    padding:8px 14px;border-radius:7px;font-size:12.5px;cursor:pointer;font-family:var(--sans);
+  }
+  .btn:hover{border-color:var(--accent);color:var(--accent);}
+  table.resumen{width:100%;border-collapse:collapse;font-size:12.5px;}
+  table.resumen th{
+    text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--text-dim);border-bottom:1px solid var(--border);padding:8px 10px;cursor:pointer;white-space:nowrap;
+  }
+  table.resumen th:hover{color:var(--accent);}
+  table.resumen td{padding:8px 10px;border-bottom:1px solid #1e2731;font-family:var(--mono);white-space:nowrap;}
+  table.resumen tbody tr{cursor:pointer;}
+  table.resumen tbody tr:hover{background:var(--panel-2);}
+  .tag-up{color:var(--up);}
+  .tag-down{color:var(--down);}
+  .tag-stable{color:var(--stable);}
+  .tag-warn{color:var(--accent);font-weight:600;}
+  .table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--panel);}
+
+  .foot-note{color:var(--text-faint);font-size:11px;margin-top:16px;line-height:1.6;}
+  code{background:var(--panel-2);padding:1px 5px;border-radius:4px;font-family:var(--mono);font-size:11px;}
+
+  @media (max-width:820px){
+    .analisis-layout{grid-template-columns:1fr;}
+    header.top{padding:14px 14px 0 14px;}
+    main{padding:14px;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="top">
+    <div class="top-row">
+      <div class="title-block">
+        <h1>Monitoreo Piezométrico — Tajo Cerro Corona</h1>
+        <div class="sub">58 puntos de control · Pozos de producción, cuerda vibrante, Casagrande y drenes</div>
+      </div>
+      <div class="sync-info" id="syncInfo">cargando…</div>
+    </div>
+    <div class="chips" id="chipsRow"></div>
+    <nav class="tabs">
+      <button data-tab="ubicacion" class="active">📍 Ubicación</button>
+      <button data-tab="analisis">📈 Análisis Temporal</button>
+      <button data-tab="resumen">📋 Resumen</button>
+    </nav>
+  </header>
+
+  <main>
+
+    <!-- ============ TAB: UBICACION ============ -->
+    <section class="tab active" id="tab-ubicacion">
+      <div class="ubicacion-layout">
+        <div class="panel map-panel">
+          <h3>Piezómetros en el mapa</h3>
+          <input class="search-box" id="mapPzSearch" placeholder="Buscar por ID, tipo o ubicación…">
+          <div class="btn-row">
+            <button class="btn" id="mapShowAll">Mostrar todos</button>
+            <button class="btn" id="mapHideAll">Ocultar todos</button>
+          </div>
+          <div class="pz-list" id="mapPzList"></div>
+        </div>
+        <div>
+          <div class="map-toolbar">
+            <div class="type-filters" id="typeFilters"></div>
+            <div class="legend">
+              <span><span class="dot" style="background:var(--up)"></span>Subiendo</span>
+              <span><span class="dot" style="background:var(--down)"></span>Bajando</span>
+              <span><span class="dot" style="background:var(--stable)"></span>Estable</span>
+              <span><span class="dot" style="background:var(--nodata)"></span>Sin dato reciente</span>
+              <label><input type="checkbox" id="toggleLabels" checked> Mostrar etiquetas</label>
+            </div>
+            <div class="zoom-ctl">
+              <button id="zoomOut">–</button>
+              <button id="zoomReset">⟳</button>
+              <button id="zoomIn">+</button>
+            </div>
+          </div>
+          <div class="map-outer" id="mapOuter">
+            <div class="map-scale" id="mapScale">
+              <img src="plano_tajo.jpg" id="mapImg" alt="Plano Tajo Cerro Corona">
+              <div id="markersLayer" class="markers-layer"></div>
+            </div>
+            <div class="tooltip" id="tooltip"></div>
+          </div>
+          <p class="foot-note">
+            Color = tendencia del nivel piezométrico en los últimos <span id="fnWindow">30</span> días (umbral ±<span id="fnEpsilon">0.10</span> m). Cada etiqueta muestra el ID y el último nivel registrado. La ubicación de cada punto se calculó a partir de la grilla de coordenadas UTM impresa en el plano — clic en un punto para ver su serie histórica.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TAB: ANALISIS ============ -->
+    <section class="tab" id="tab-analisis">
+      <div class="analisis-layout">
+        <div class="panel">
+          <h3>Piezómetros</h3>
+          <input class="search-box" id="pzSearch" placeholder="Buscar por ID, tipo o ubicación…">
+          <div class="pz-list" id="pzList"></div>
+          <h3 style="margin-top:16px;">Rango de fechas</h3>
+          <div class="date-range">
+            <input type="date" id="dateFrom">
+            <input type="date" id="dateTo">
+          </div>
+        </div>
+        <div>
+          <div class="chart-card">
+            <canvas id="chart" height="130"></canvas>
+          </div>
+          <div class="stat-cards" id="statCards"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TAB: RESUMEN ============ -->
+    <section class="tab" id="tab-resumen">
+      <div class="resumen-toolbar">
+        <input class="search-box" id="resumenSearch" placeholder="Buscar por ID, tipo o ubicación…">
+        <button class="btn" id="downloadCsv">Descargar CSV</button>
+      </div>
+      <div class="table-wrap">
+        <table class="resumen" id="resumenTable">
+          <thead>
+            <tr>
+              <th data-key="id">ID</th>
+              <th data-key="tipo">Tipo</th>
+              <th data-key="ubicacion">Ubicación</th>
+              <th data-key="ultimo_nivel">Último nivel (msnm)</th>
+              <th data-key="ultima_fecha">Fecha</th>
+              <th data-key="dias_sin_dato">Días sin dato</th>
+              <th data-key="delta_30d">Tendencia (30d)</th>
+            </tr>
+          </thead>
+          <tbody id="resumenBody"></tbody>
+        </table>
+      </div>
+      <p class="foot-note">Clic en una fila para abrir su serie histórica en la pestaña Análisis Temporal.</p>
+    </section>
+
+  </main>
+</div>
+
+<script>
+/* ==========================================================================
+   CONFIGURACIÓN
+   Para pasar de datos embebidos (este archivo) a Google Sheets en vivo:
+   1. Sube PIEZOMETRIA.xlsx a Google Drive, ábrelo como Google Sheets (mantiene
+      las 2 pestañas: "Maestro" y "Lecturas").
+   2. Publica cada pestaña por separado como CSV (Archivo > Compartir >
+      Publicar en la web > selecciona la pestaña > formato CSV).
+   3. Pon USE_GOOGLE_SHEETS en true y pega ambas URLs abajo.
+   Columnas esperadas:
+     Maestro:  ID, Tipo, Este, Norte, Ubicacion
+     Lecturas: formato ANCHO — primera columna "Fecha" (una fila por día),
+               y una columna por cada piezómetro con su ID como encabezado
+               (ej. Fecha | PP-16 | PP-34 | VW-1801 | ...). Para agregar una
+               lectura nueva, agrega una fila nueva y llena solo las columnas
+               que tengas ese día — el resto se puede dejar en blanco.
+   ========================================================================== */
+const CONFIG = {
+  USE_GOOGLE_SHEETS: true,
+  MAESTRO_CSV_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6KrH9GrY2eAFYOEOqXq0NKL5IupZ_Yj_MwzoJ2yRiZtSoc4V4okaSvF_2Yakgow/pub?gid=1928036866&single=true&output=csv",
+  LECTURAS_CSV_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6KrH9GrY2eAFYOEOqXq0NKL5IupZ_Yj_MwzoJ2yRiZtSoc4V4okaSvF_2Yakgow/pub?gid=572458879&single=true&output=csv",
+  TREND_WINDOW_DAYS: 30,
+  TREND_EPSILON_M: 0.10,
+};
+
+/* ---- Transformación UTM -> % de la imagen -----------------------------
+   Calculada directamente desde la grilla UTM impresa en el plano
+   (762500/763000/763500/764000 Este y 9251500/9252000/9252500 Norte),
+   detectando la posición en píxeles de cada marca sobre la imagen original
+   (3869 x 3341 px). No requiere puntos de control manuales.               */
+const GRID = {
+  imgW: 3869, imgH: 3341,
+  x0px: 385.5, x0utm: 762500, pxPerMeterX: 3221/1500,
+  y0px: 1015.5, y0utm: 9252500, pxPerMeterY: 2148/1000,
+};
+function utmToPercent(este, norte){
+  const px = GRID.x0px + (este - GRID.x0utm) * GRID.pxPerMeterX;
+  const py = GRID.y0px - (norte - GRID.y0utm) * GRID.pxPerMeterY;
+  return { left: (px / GRID.imgW) * 100, top: (py / GRID.imgH) * 100 };
+}
+
+/* ---- Clasificación de tipo de instrumento -------------------------------- */
+function classifyTipo(raw){
+  const t = (raw||'').toLowerCase();
+  if (t.includes('produccion')) return 'Pozo de Producción';
+  if (t.includes('casagrande')) return 'Casagrande';
+  if (t.includes('dren')) return 'Dren';
+  if (t.includes('vibrante')) return 'Cuerda Vibrante';
+  return 'Otro';
+}
+const TYPE_COLORS = {
+  'Pozo de Producción':'#f0a24e','Casagrande':'#4fb0c6','Dren':'#c98bd6','Cuerda Vibrante':'#8fa0b3','Otro':'#8fa0b3'
+};
+
+/* ---- Fecha helpers -------------------------------------------------------- */
+function parseFecha(s){
+  if(!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  return null;
+}
+function daysBetween(a,b){ return Math.round((new Date(b) - new Date(a)) / 86400000); }
+
+/* ---- Estado global ---------------------------------------------------- */
+let STATE = { maestro: [], series: {}, selected: new Set(), mapVisible: new Set(), typeVisibility: {}, colorMap: {} };
+const PALETTE = ['#f0a24e','#4fb0c6','#e2604f','#3fb389','#c98bd6','#e8d05a','#7ea6e0','#d97757'];
+
+function computeTrend(pzId){
+  const s = STATE.series[pzId];
+  if(!s || s.length===0) return {last:null,lastDate:null,delta:null};
+  const last = s[s.length-1];
+  const lastDate = last[0];
+  const targetTime = new Date(lastDate).getTime() - CONFIG.TREND_WINDOW_DAYS*86400000;
+  let best=null, bestDiff=Infinity;
+  for(const [f,v] of s){
+    const diff = Math.abs(new Date(f).getTime() - targetTime);
+    if(diff < bestDiff){ bestDiff=diff; best=[f,v]; }
+  }
+  let delta=null;
+  if(best && bestDiff <= 10*86400000) delta = +(last[1]-best[1]).toFixed(3);
+  return {last:last[1], lastDate, delta};
+}
+function trendClass(delta){
+  if(delta===null || delta===undefined) return 'nodata';
+  if(delta >= CONFIG.TREND_EPSILON_M) return 'up';
+  if(delta <= -CONFIG.TREND_EPSILON_M) return 'down';
+  return 'stable';
+}
+
+/* ---- Carga de datos (embebidos o Google Sheets) ------------------------ */
+function csvParse(text){
+  const rows=[]; let row=[]; let field=''; let inQ=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){field+='"';i++;} else inQ=false; }
+      else field+=c;
+    } else {
+      if(c==='"') inQ=true;
+      else if(c===','){ row.push(field); field=''; }
+      else if(c==='\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+      else if(c==='\r'){ /* skip */ }
+      else field+=c;
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows.filter(r=>r.length>1 || (r[0]&&r[0].trim()!==''));
+}
+async function fetchCSV(url){
+  const res = await fetch(url);
+  const text = await res.text();
+  return csvParse(text);
+}
+
+async function loadData(){
+  if(CONFIG.USE_GOOGLE_SHEETS && CONFIG.MAESTRO_CSV_URL && CONFIG.LECTURAS_CSV_URL){
+    const [mRows, lRows] = await Promise.all([fetchCSV(CONFIG.MAESTRO_CSV_URL), fetchCSV(CONFIG.LECTURAS_CSV_URL)]);
+    // ---- Maestro: ID, Tipo, Este, Norte, Ubicacion ----
+    const mHeader = mRows[0].map(h=>h.trim().toLowerCase());
+    const idx = k => mHeader.indexOf(k);
+    STATE.maestro = mRows.slice(1).filter(r=>r[0]).map(r=>({
+      id:r[idx('id')], tipo:r[idx('tipo')],
+      este:parseFloat(r[idx('este')]), norte:parseFloat(r[idx('norte')]),
+      ubicacion:r[idx('ubicacion')]
+    }));
+    // ---- Lecturas: formato ANCHO -> Fecha | PZ1 | PZ2 | ... ----
+    const lHeader = lRows[0];
+    const fechaCol = lHeader.findIndex(h=>h.trim().toLowerCase()==='fecha');
+    const pzCols = lHeader.map((h,i)=> i===fechaCol ? null : {i, id:h.trim()}).filter(Boolean);
+    const series = {};
+    for(const r of lRows.slice(1)){
+      const fecha = parseFecha(r[fechaCol]);
+      if(!fecha) continue;
+      for(const {i, id} of pzCols){
+        const raw = r[i];
+        if(raw===undefined || raw===null || String(raw).trim()==='') continue;
+        const nivel = parseFloat(raw);
+        if(isNaN(nivel)) continue;
+        (series[id] = series[id]||[]).push([fecha, nivel]);
+      }
+    }
+    for(const k in series) series[k].sort((a,b)=> a[0]<b[0]?-1:1);
+    STATE.series = series;
+  } else {
+    STATE.maestro = PIEZO_DATA.maestro;
+    STATE.series = PIEZO_DATA.series;
+  }
+  STATE.maestro.forEach((m,i)=>{
+    STATE.colorMap[m.id] = PALETTE[i % PALETTE.length];
+    STATE.mapVisible.add(m.id);
+  });
+}
+
+/* ======================================================================
+   RENDER: UBICACION
+   ====================================================================== */
+function renderTypeFilters(){
+  const types = [...new Set(STATE.maestro.map(m=>classifyTipo(m.tipo)))];
+  const box = document.getElementById('typeFilters');
+  box.innerHTML='';
+  types.forEach(t=>{
+    STATE.typeVisibility[t] = true;
+    const lab = document.createElement('label');
+    lab.innerHTML = `<input type="checkbox" checked data-type="${t}"> <span style="color:${TYPE_COLORS[t]||'#8fa0b3'}">●</span> ${t}`;
+    lab.querySelector('input').addEventListener('change', e=>{
+      STATE.typeVisibility[t] = e.target.checked;
+      document.querySelectorAll(`.marker-wrap[data-type="${CSS.escape(t)}"]`).forEach(m=>{
+        m.classList.toggle('hidden-type', !e.target.checked);
+      });
+    });
+    box.appendChild(lab);
+  });
+}
+
+function renderMarkers(){
+  const layer = document.getElementById('markersLayer');
+  layer.innerHTML='';
+  const tooltip = document.getElementById('tooltip');
+  STATE.maestro.forEach(m=>{
+    const pos = utmToPercent(m.este, m.norte);
+    const trend = computeTrend(m.id);
+    const cls = trendClass(trend.delta);
+    const type = classifyTipo(m.tipo);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'marker-wrap';
+    wrap.style.left = pos.left+'%';
+    wrap.style.top = pos.top+'%';
+    wrap.dataset.type = type;
+    wrap.dataset.pz = m.id;
+    if(!STATE.mapVisible.has(m.id)) wrap.classList.add('hidden-pz');
+
+    const dot = document.createElement('div');
+    dot.className = `marker ${cls}`;
+    dot.addEventListener('mouseenter', (ev)=>showTooltip(m, trend, ev));
+    dot.addEventListener('mousemove', (ev)=>positionTooltip(ev));
+    dot.addEventListener('mouseleave', ()=>{ tooltip.style.display='none'; });
+    dot.addEventListener('click', ()=> selectSinglePzAndSwitch(m.id));
+
+    const label = document.createElement('div');
+    label.className = `marker-label ${cls}`;
+    label.innerHTML = `<b>${m.id}</b><span>${trend.last!==null?trend.last.toFixed(2):'s/d'}</span>`;
+
+    wrap.appendChild(dot);
+    wrap.appendChild(label);
+    layer.appendChild(wrap);
+  });
+}
+
+function setMapVisibility(pzId, visible){
+  if(visible) STATE.mapVisible.add(pzId); else STATE.mapVisible.delete(pzId);
+  const wrap = document.querySelector(`.marker-wrap[data-pz="${CSS.escape(pzId)}"]`);
+  if(wrap) wrap.classList.toggle('hidden-pz', !visible);
+}
+
+function renderMapPzList(filter=''){
+  const list = document.getElementById('mapPzList');
+  list.innerHTML='';
+  const f = filter.trim().toLowerCase();
+  STATE.maestro
+    .filter(m => !f || m.id.toLowerCase().includes(f) || (m.tipo||'').toLowerCase().includes(f) || (m.ubicacion||'').toLowerCase().includes(f))
+    .forEach(m=>{
+      const trend = computeTrend(m.id);
+      const cls = trendClass(trend.delta);
+      const lab = document.createElement('label');
+      const checked = STATE.mapVisible.has(m.id) ? 'checked' : '';
+      lab.innerHTML = `
+        <span class="pz-left"><span class="swatch" style="background:var(--${cls==='nodata'?'nodata':cls})"></span><span class="name">${m.id}</span></span>
+        <input type="checkbox" ${checked} data-pz="${m.id}">`;
+      lab.querySelector('input').addEventListener('change', e=> setMapVisibility(m.id, e.target.checked));
+      list.appendChild(lab);
+    });
+}
+document.getElementById('mapPzSearch').addEventListener('input', e=> renderMapPzList(e.target.value));
+document.getElementById('mapShowAll').addEventListener('click', ()=>{
+  STATE.maestro.forEach(m=> setMapVisibility(m.id, true));
+  renderMapPzList(document.getElementById('mapPzSearch').value);
+});
+document.getElementById('mapHideAll').addEventListener('click', ()=>{
+  STATE.maestro.forEach(m=> setMapVisibility(m.id, false));
+  renderMapPzList(document.getElementById('mapPzSearch').value);
+});
+document.getElementById('toggleLabels').addEventListener('change', e=>{
+  document.getElementById('markersLayer').classList.toggle('labels-off', !e.target.checked);
+});
+function showTooltip(m, trend, ev){
+  const tooltip = document.getElementById('tooltip');
+  const arrow = trend.delta===null ? '—' : (trend.delta>=CONFIG.TREND_EPSILON_M ? '↑' : (trend.delta<=-CONFIG.TREND_EPSILON_M ? '↓':'→'));
+  tooltip.innerHTML = `
+    <h4>${m.id}</h4>
+    <div class="row"><span>Tipo</span><b>${classifyTipo(m.tipo)}</b></div>
+    <div class="row"><span>Ubicación</span><b>${m.ubicacion||'—'}</b></div>
+    <div class="row"><span>Último nivel</span><b>${trend.last!==null?trend.last.toFixed(2):'—'} msnm</b></div>
+    <div class="row"><span>Fecha</span><b>${trend.lastDate||'—'}</b></div>
+    <div class="row"><span>Δ ${CONFIG.TREND_WINDOW_DAYS}d</span><b>${trend.delta!==null? (trend.delta>0?'+':'')+trend.delta.toFixed(2)+' m '+arrow : 'sin dato'}</b></div>
+  `;
+  tooltip.style.display='block';
+  positionTooltip(ev);
+}
+function positionTooltip(ev){
+  const tooltip = document.getElementById('tooltip');
+  const outer = document.getElementById('mapOuter');
+  const rect = outer.getBoundingClientRect();
+  let x = ev.clientX - rect.left + outer.scrollLeft + 16;
+  let y = ev.clientY - rect.top + outer.scrollTop + 12;
+  tooltip.style.left = x+'px';
+  tooltip.style.top = y+'px';
+}
+
+let zoomLevel = 1;
+function applyZoom(){
+  document.getElementById('mapScale').style.transform = `scale(${zoomLevel})`;
+}
+document.getElementById('zoomIn').addEventListener('click', ()=>{ zoomLevel=Math.min(zoomLevel+0.2,3); applyZoom(); });
+document.getElementById('zoomOut').addEventListener('click', ()=>{ zoomLevel=Math.max(zoomLevel-0.2,0.6); applyZoom(); });
+document.getElementById('zoomReset').addEventListener('click', ()=>{ zoomLevel=1; applyZoom(); });
+
+/* ======================================================================
+   RENDER: CHIPS (resumen superior)
+   ====================================================================== */
+function renderChips(){
+  let up=0,down=0,stable=0,nodata=0,staleCount=0;
+  const today = new Date().toISOString().slice(0,10);
+  STATE.maestro.forEach(m=>{
+    const t = computeTrend(m.id);
+    const cls = trendClass(t.delta);
+    if(cls==='up') up++; else if(cls==='down') down++; else if(cls==='stable') stable++; else nodata++;
+    if(t.lastDate && daysBetween(t.lastDate, today) > 10) staleCount++;
+  });
+  const box = document.getElementById('chipsRow');
+  box.innerHTML = `
+    <div class="chip"><div class="n">${STATE.maestro.length}</div><div class="l">Piezómetros</div></div>
+    <div class="chip up"><div class="n">${up}</div><div class="l">Subiendo</div></div>
+    <div class="chip down"><div class="n">${down}</div><div class="l">Bajando</div></div>
+    <div class="chip stable"><div class="n">${stable}</div><div class="l">Estables</div></div>
+    <div class="chip warn"><div class="n">${staleCount}</div><div class="l">Sin dato &gt;10 días</div></div>
+  `;
+  document.getElementById('syncInfo').innerHTML = CONFIG.USE_GOOGLE_SHEETS
+    ? `Fuente: <b>Google Sheets</b> · cargado ${new Date().toLocaleString('es-PE')}`
+    : `Fuente: <b>datos embebidos</b> (PIEZOMETRIA.xlsx, desde 2024-01-01) · ver instrucciones para conectar Google Sheets`;
+}
+
+/* ======================================================================
+   RENDER: ANALISIS TEMPORAL
+   ====================================================================== */
+let chartInstance = null;
+
+function renderPzList(filter=''){
+  const list = document.getElementById('pzList');
+  list.innerHTML='';
+  const f = filter.trim().toLowerCase();
+  STATE.maestro
+    .filter(m => !f || m.id.toLowerCase().includes(f) || (m.tipo||'').toLowerCase().includes(f) || (m.ubicacion||'').toLowerCase().includes(f))
+    .forEach(m=>{
+      const lab = document.createElement('label');
+      const checked = STATE.selected.has(m.id) ? 'checked' : '';
+      lab.innerHTML = `<input type="checkbox" ${checked} data-pz="${m.id}"><span class="swatch" style="background:${STATE.colorMap[m.id]}"></span>${m.id} <span style="color:var(--text-faint)">· ${m.ubicacion||''}</span>`;
+      lab.querySelector('input').addEventListener('change', e=>{
+        if(e.target.checked) STATE.selected.add(m.id); else STATE.selected.delete(m.id);
+        updateChart();
+      });
+      list.appendChild(lab);
+    });
+}
+
+function getDateRange(){
+  const from = document.getElementById('dateFrom').value;
+  const to = document.getElementById('dateTo').value;
+  return {from, to};
+}
+
+function updateChart(){
+  const {from, to} = getDateRange();
+  const datasets = [];
+  STATE.selected.forEach(pz=>{
+    const s = STATE.series[pz] || [];
+    const pts = s.filter(([f])=> (!from || f>=from) && (!to || f<=to)).map(([f,v])=>({x:f, y:v}));
+    datasets.push({
+      label: pz, data: pts, borderColor: STATE.colorMap[pz], backgroundColor: STATE.colorMap[pz],
+      pointRadius: pts.length>200?0:2, borderWidth: 1.8, tension: .15, spanGaps: true,
+    });
+  });
+
+  const ctx = document.getElementById('chart').getContext('2d');
+  if(chartInstance) chartInstance.destroy();
+  if(datasets.length===0){
+    document.getElementById('statCards').innerHTML = `<div class="empty-msg">Selecciona uno o más piezómetros de la lista para ver su serie histórica.</div>`;
+    return;
+  }
+  chartInstance = new Chart(ctx, {
+    type:'line',
+    data:{datasets},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'nearest', intersect:false},
+      plugins:{
+        legend:{labels:{color:'#e7ecf1', boxWidth:12, font:{size:11}}},
+        tooltip:{callbacks:{label: c=> `${c.dataset.label}: ${c.parsed.y.toFixed(2)} msnm`}}
+      },
+      scales:{
+        x:{type:'time', time:{unit:'month'}, ticks:{color:'#8fa0b3'}, grid:{color:'#1e2731'}},
+        y:{title:{display:true,text:'Nivel piezométrico (msnm)',color:'#8fa0b3'}, ticks:{color:'#8fa0b3'}, grid:{color:'#1e2731'}}
+      }
+    }
+  });
+  document.getElementById('chart').parentElement.style.height='460px';
+
+  const cards = document.getElementById('statCards');
+  cards.innerHTML='';
+  STATE.selected.forEach(pz=>{
+    const t = computeTrend(pz);
+    const cls = trendClass(t.delta);
+    const color = cls==='up'?'var(--up)':cls==='down'?'var(--down)':cls==='stable'?'var(--stable)':'var(--nodata)';
+    const arrow = t.delta===null?'—':(t.delta>=CONFIG.TREND_EPSILON_M?'↑':(t.delta<=-CONFIG.TREND_EPSILON_M?'↓':'→'));
+    const card = document.createElement('div');
+    card.className='stat-card';
+    card.style.borderLeftColor = color;
+    card.innerHTML = `
+      <div class="pzname">${pz}</div>
+      <div class="val">${t.last!==null?t.last.toFixed(2):'—'} msnm</div>
+      <div class="delta">${t.lastDate||'—'} · Δ${CONFIG.TREND_WINDOW_DAYS}d: ${t.delta!==null?(t.delta>0?'+':'')+t.delta.toFixed(2):'—'} m ${arrow}</div>
+    `;
+    cards.appendChild(card);
+  });
+}
+
+function selectSinglePzAndSwitch(pzId){
+  STATE.selected = new Set([pzId]);
+  switchTab('analisis');
+  renderPzList(document.getElementById('pzSearch').value);
+  updateChart();
+}
+
+/* ======================================================================
+   RENDER: RESUMEN
+   ====================================================================== */
+let resumenSort = {key:'id', dir:1};
+function buildResumenRows(){
+  const today = new Date().toISOString().slice(0,10);
+  return STATE.maestro.map(m=>{
+    const t = computeTrend(m.id);
+    return {
+      id:m.id, tipo:classifyTipo(m.tipo), ubicacion:m.ubicacion||'—',
+      ultimo_nivel: t.last, ultima_fecha: t.lastDate,
+      dias_sin_dato: t.lastDate ? daysBetween(t.lastDate, today) : null,
+      delta_30d: t.delta,
+    };
+  });
+}
+function renderResumen(filter=''){
+  let rows = buildResumenRows();
+  const f = filter.trim().toLowerCase();
+  if(f) rows = rows.filter(r => r.id.toLowerCase().includes(f) || r.tipo.toLowerCase().includes(f) || r.ubicacion.toLowerCase().includes(f));
+  rows.sort((a,b)=>{
+    let va=a[resumenSort.key], vb=b[resumenSort.key];
+    if(va===null||va===undefined) va = -Infinity;
+    if(vb===null||vb===undefined) vb = -Infinity;
+    if(typeof va === 'string') return va.localeCompare(vb) * resumenSort.dir;
+    return (va-vb) * resumenSort.dir;
+  });
+  const body = document.getElementById('resumenBody');
+  body.innerHTML='';
+  rows.forEach(r=>{
+    const cls = trendClass(r.delta_30d);
+    const tagClass = cls==='up'?'tag-up':cls==='down'?'tag-down':cls==='stable'?'tag-stable':'';
+    const arrow = r.delta_30d===null?'—':(r.delta_30d>=CONFIG.TREND_EPSILON_M?'↑':(r.delta_30d<=-CONFIG.TREND_EPSILON_M?'↓':'→'));
+    const staleClass = (r.dias_sin_dato!==null && r.dias_sin_dato>10) ? 'tag-warn' : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.id}</td>
+      <td style="font-family:var(--sans)">${r.tipo}</td>
+      <td style="font-family:var(--sans)">${r.ubicacion}</td>
+      <td>${r.ultimo_nivel!==null?r.ultimo_nivel.toFixed(2):'—'}</td>
+      <td>${r.ultima_fecha||'—'}</td>
+      <td class="${staleClass}">${r.dias_sin_dato!==null?r.dias_sin_dato:'—'}</td>
+      <td class="${tagClass}">${r.delta_30d!==null?(r.delta_30d>0?'+':'')+r.delta_30d.toFixed(2)+' m '+arrow:'sin dato'}</td>
+    `;
+    tr.addEventListener('click', ()=> selectSinglePzAndSwitch(r.id));
+    body.appendChild(tr);
+  });
+  window._resumenRowsCache = rows;
+}
+document.querySelectorAll('table.resumen th').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const key = th.dataset.key;
+    if(resumenSort.key===key) resumenSort.dir *= -1; else { resumenSort.key=key; resumenSort.dir=1; }
+    renderResumen(document.getElementById('resumenSearch').value);
+  });
+});
+document.getElementById('downloadCsv').addEventListener('click', ()=>{
+  const rows = window._resumenRowsCache || [];
+  const header = ['ID','Tipo','Ubicacion','Ultimo_nivel','Fecha','Dias_sin_dato','Delta_30d'];
+  const lines = [header.join(',')];
+  rows.forEach(r=>{
+    lines.push([r.id,r.tipo,r.ubicacion,r.ultimo_nivel,r.ultima_fecha,r.dias_sin_dato,r.delta_30d].map(v=>v===null||v===undefined?'':v).join(','));
+  });
+  const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `resumen_piezometria_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+});
+
+/* ======================================================================
+   TABS
+   ====================================================================== */
+function switchTab(name){
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  document.querySelectorAll('section.tab').forEach(s=>s.classList.toggle('active', s.id===`tab-${name}`));
+  if(name==='analisis' && chartInstance) setTimeout(()=>chartInstance.resize(),50);
+}
+document.querySelectorAll('nav.tabs button').forEach(b=>{
+  b.addEventListener('click', ()=>switchTab(b.dataset.tab));
+});
+
+document.getElementById('pzSearch').addEventListener('input', e=> renderPzList(e.target.value));
+document.getElementById('resumenSearch').addEventListener('input', e=> renderResumen(e.target.value));
+document.getElementById('dateFrom').addEventListener('change', updateChart);
+document.getElementById('dateTo').addEventListener('change', updateChart);
+
+/* ======================================================================
+   INIT
+   ====================================================================== */
+async function init(){
+  document.getElementById('fnWindow').textContent = CONFIG.TREND_WINDOW_DAYS;
+  document.getElementById('fnEpsilon').textContent = CONFIG.TREND_EPSILON_M.toFixed(2);
+  await loadData();
+  renderChips();
+  renderTypeFilters();
+  renderMarkers();
+  renderMapPzList();
+  renderPzList();
+  renderResumen();
+
+  // rango de fechas por defecto: últimos 6 meses de datos disponibles
+  let maxDate = null;
+  Object.values(STATE.series).forEach(s=>{ if(s.length){ const d=s[s.length-1][0]; if(!maxDate||d>maxDate) maxDate=d; } });
+  if(maxDate){
+    const to = maxDate;
+    const fromD = new Date(maxDate); fromD.setMonth(fromD.getMonth()-6);
+    document.getElementById('dateTo').value = to;
+    document.getElementById('dateFrom').value = fromD.toISOString().slice(0,10);
+  }
+}
+init();
+</script>
+</body>
+</html>
