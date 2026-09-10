@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Monitoreo Piezométrico — Cerro Corona</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-adapter-date-fns/3.0.0/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="chart.umd.js"></script>
+<script src="chartjs-adapter-date-fns.bundle.min.js"></script>
 <script src="piezo_data.js"></script>
 <style>
   :root{
@@ -152,6 +152,13 @@
     padding:8px 10px;border-radius:7px;font-size:12.5px;margin-bottom:10px;font-family:var(--sans);
   }
   .pz-list{max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;}
+  .wall-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
+  .wall-filters button{
+    background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);
+    padding:4px 10px;border-radius:14px;font-size:11px;cursor:pointer;font-family:var(--sans);
+  }
+  .wall-filters button:hover{border-color:var(--accent);color:var(--accent);}
+  .wall-filters button.clear{color:var(--text-faint);}
   .pz-list label{
     display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 6px;border-radius:6px;cursor:pointer;color:var(--text-dim);
   }
@@ -277,6 +284,7 @@
         <div class="panel">
           <h3>Piezómetros</h3>
           <input class="search-box" id="pzSearch" placeholder="Buscar por ID, tipo o ubicación…">
+          <div class="wall-filters" id="wallFilters"></div>
           <div class="pz-list" id="pzList"></div>
           <h3 style="margin-top:16px;">Rango de fechas</h3>
           <div class="date-range">
@@ -340,7 +348,7 @@
    ========================================================================== */
 const CONFIG = {
   USE_GOOGLE_SHEETS: true,
-  MAESTRO_CSV_URL: https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6KrH9GrY2eAFYOEOqXq0NKL5IupZ_Yj_MwzoJ2yRiZtSoc4V4okaSvF_2Yakgow/pub?gid=1928036866&single=true&output=csv",
+  MAESTRO_CSV_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6KrH9GrY2eAFYOEOqXq0NKL5IupZ_Yj_MwzoJ2yRiZtSoc4V4okaSvF_2Yakgow/pub?gid=1928036866&single=true&output=csv",
   LECTURAS_CSV_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6KrH9GrY2eAFYOEOqXq0NKL5IupZ_Yj_MwzoJ2yRiZtSoc4V4okaSvF_2Yakgow/pub?gid=572458879&single=true&output=csv",
   TREND_WINDOW_DAYS: 30,
   TREND_EPSILON_M: 0.10,
@@ -629,6 +637,35 @@ function renderChips(){
    ====================================================================== */
 let chartInstance = null;
 
+function renderWallFilters(){
+  const box = document.getElementById('wallFilters');
+  const groups = {};
+  STATE.maestro.forEach(m=>{
+    const w = (m.ubicacion||'Sin ubicación').trim();
+    (groups[w] = groups[w]||[]).push(m.id);
+  });
+  box.innerHTML='';
+  Object.keys(groups).sort().forEach(wall=>{
+    const btn = document.createElement('button');
+    btn.textContent = `${wall} (${groups[wall].length})`;
+    btn.addEventListener('click', ()=>{
+      STATE.selected = new Set(groups[wall]);
+      renderPzList(document.getElementById('pzSearch').value);
+      updateChart();
+    });
+    box.appendChild(btn);
+  });
+  const clearBtn = document.createElement('button');
+  clearBtn.textContent = 'Limpiar';
+  clearBtn.className = 'clear';
+  clearBtn.addEventListener('click', ()=>{
+    STATE.selected = new Set();
+    renderPzList(document.getElementById('pzSearch').value);
+    updateChart();
+  });
+  box.appendChild(clearBtn);
+}
+
 function renderPzList(filter=''){
   const list = document.getElementById('pzList');
   list.innerHTML='';
@@ -668,9 +705,14 @@ function updateChart(){
   const ctx = document.getElementById('chart').getContext('2d');
   if(chartInstance) chartInstance.destroy();
   if(datasets.length===0){
-    document.getElementById('statCards').innerHTML = `<div class="empty-msg">Selecciona uno o más piezómetros de la lista para ver su serie histórica.</div>`;
+    document.getElementById('statCards').innerHTML = `<div class="empty-msg">Selecciona uno o más piezómetros de la lista (o un grupo por pared) para ver su serie histórica.</div>`;
     return;
   }
+  if(typeof Chart === 'undefined'){
+    document.getElementById('statCards').innerHTML = `<div class="empty-msg">⚠ No se pudo cargar la librería de gráficos (chart.umd.js). Verifica que ese archivo esté en la misma carpeta que este HTML.</div>`;
+    return;
+  }
+  try{
   chartInstance = new Chart(ctx, {
     type:'line',
     data:{datasets},
@@ -687,6 +729,11 @@ function updateChart(){
       }
     }
   });
+  } catch(err){
+    console.error('Error creando el gráfico:', err);
+    document.getElementById('statCards').innerHTML = `<div class="empty-msg">⚠ Ocurrió un error al dibujar el gráfico: ${err.message}</div>`;
+    return;
+  }
   document.getElementById('chart').parentElement.style.height='460px';
 
   const cards = document.getElementById('statCards');
@@ -814,6 +861,7 @@ async function init(){
   renderMarkers();
   renderMapPzList();
   renderPzList();
+  renderWallFilters();
   renderResumen();
 
   // rango de fechas por defecto: últimos 6 meses de datos disponibles
