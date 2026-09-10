@@ -72,6 +72,7 @@
 
   /* ---------- UBICACION ---------- */
   .ubicacion-layout{display:grid;grid-template-columns:260px 1fr;gap:18px;align-items:start;}
+  .map-column{max-width:2000px;}
   .map-panel .btn-row{display:flex;gap:6px;margin-bottom:10px;}
   .map-panel .btn-row .btn{flex:1;padding:6px 8px;font-size:11px;text-align:center;}
   .map-panel .pz-list{max-height:52vh;}
@@ -111,7 +112,7 @@
     border:1px solid var(--border);border-radius:var(--radius);overflow:auto;
     background:#0b0e12;max-height:74vh;position:relative;
   }
-  .map-scale{position:relative;transform-origin:0 0;width:2000px;}
+  .map-scale{position:relative;transform-origin:0 0;width:100%;max-width:2000px;}
   .map-scale img{display:block;width:100%;height:auto;user-select:none;-webkit-user-drag:none;}
 
   .marker-wrap{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;gap:5px;}
@@ -258,7 +259,7 @@
           </div>
           <div class="pz-list" id="mapPzList"></div>
         </div>
-        <div>
+        <div class="map-column">
           <div class="preset-row">
             <button class="btn-preset" id="presetHidraulica"><span class="ico">🛡️</span> Piezómetros de monitoreo - Contención Hidráulica</button>
           </div>
