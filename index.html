@@ -9,19 +9,20 @@
 <script src="piezo_data.js"></script>
 <style>
   :root{
-    --bg:#10151c;
-    --panel:#1a222c;
-    --panel-2:#212b37;
-    --border:#2e3a47;
-    --text:#e7ecf1;
-    --text-dim:#8fa0b3;
-    --text-faint:#5f7086;
-    --accent:#f0a24e;
+    --bg:#ffffff;
+    --panel:#f5f7fb;
+    --panel-2:#eaeef5;
+    --border:#d7dfea;
+    --text:#16233f;
+    --text-dim:#4a5b7c;
+    --text-faint:#8493ab;
+    --accent:#b8860b;
     --accent-dim:#8a6633;
-    --up:#e2604f;
-    --down:#3fb389;
-    --stable:#7e8fa5;
-    --nodata:#3d4a58;
+    --gold:#c9a227;
+    --up:#c0392b;
+    --down:#1f8a5f;
+    --stable:#5b6b85;
+    --nodata:#a9b3c2;
     --radius:10px;
     --mono:'IBM Plex Mono','SFMono-Regular',Consolas,monospace;
     --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
@@ -36,14 +37,12 @@
 
   header.top{
     padding:18px 24px 0 24px;
-    border-bottom:1px solid var(--border);
-    background:linear-gradient(180deg,#141b23,#10151c);
+    border-bottom:2px solid var(--gold);
+    background:#ffffff;
   }
   .top-row{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;margin-bottom:14px;}
   .title-block h1{font-size:19px;margin:0 0 2px 0;font-weight:650;letter-spacing:.2px;}
   .title-block .sub{color:var(--text-dim);font-size:12.5px;}
-  .sync-info{font-size:11.5px;color:var(--text-faint);text-align:right;font-family:var(--mono);}
-  .sync-info b{color:var(--accent);font-weight:600;}
 
   .chips{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
   .chip{
@@ -72,7 +71,7 @@
 
   /* ---------- UBICACION ---------- */
   .ubicacion-layout{display:grid;grid-template-columns:260px 1fr;gap:18px;align-items:start;}
-  .map-column{max-width:2000px;}
+  .map-column{width:fit-content;max-width:100%;}
   .map-panel .btn-row{display:flex;gap:6px;margin-bottom:10px;}
   .map-panel .btn-row .btn{flex:1;padding:6px 8px;font-size:11px;text-align:center;}
   .map-panel .pz-list{max-height:52vh;}
@@ -98,6 +97,7 @@
     box-shadow:0 3px 10px rgba(0,0,0,.4);
   }
   .zoom-ctl button:hover{border-color:var(--accent);color:var(--accent);}
+  .zoom-ctl button.active{background:var(--accent);color:#1a1204;border-color:var(--accent);}
 
   .preset-row{margin-bottom:12px;}
   .btn-preset{
@@ -109,11 +109,11 @@
   .btn-preset .ico{font-size:14px;}
 
   .map-outer{
-    border:1px solid var(--border);border-radius:var(--radius);overflow:auto;
-    background:#0b0e12;max-height:74vh;position:relative;
+    border:1.5px solid var(--gold);border-radius:var(--radius);overflow:auto;
+    background:#0b0e12;height:52vh;position:relative;width:fit-content;max-width:100%;
   }
-  .map-scale{position:relative;transform-origin:0 0;width:100%;max-width:2000px;}
-  .map-scale img{display:block;width:100%;height:auto;user-select:none;-webkit-user-drag:none;}
+  .map-scale{position:relative;transform-origin:0 0;display:inline-block;height:100%;}
+  .map-scale img{display:block;height:100%;width:auto;max-width:none;user-select:none;-webkit-user-drag:none;}
 
   .marker-wrap{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;gap:5px;}
   .marker-wrap.hidden-type,.marker-wrap.hidden-pz{display:none;}
@@ -134,11 +134,11 @@
 
   .marker-label{
     pointer-events:none;background:rgba(11,14,18,.85);border:1px solid var(--border);
-    border-radius:6px;padding:4px 9px;font-size:20px;line-height:1.25;white-space:nowrap;
-    box-shadow:0 2px 6px rgba(0,0,0,.4);
+    border-radius:5px;padding:3px 7px;font-size:13px;line-height:1.25;white-space:nowrap;
+    box-shadow:0 2px 6px rgba(0,0,0,.4);transform-origin:left center;
   }
-  .marker-label b{display:block;font-size:20px;color:var(--text);font-weight:700;}
-  .marker-label span{display:block;font-family:var(--mono);font-size:18px;}
+  .marker-label b{display:block;font-size:13px;color:#eef1f5;font-weight:700;}
+  .marker-label span{display:block;font-family:var(--mono);font-size:12px;}
   .marker-label.up span{color:var(--up);}
   .marker-label.down span{color:var(--down);}
   .marker-label.stable span{color:var(--stable);}
@@ -184,7 +184,7 @@
   }
   .toggle-row{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:var(--text-dim);}
 
-  .chart-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
+  .chart-card{background:var(--panel);border:1.5px solid var(--gold);border-radius:var(--radius);padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
   .chart-card canvas{max-height:440px;}
   .stat-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
   .stat-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;border-left:3px solid var(--stable);}
@@ -207,7 +207,7 @@
     color:var(--text-dim);border-bottom:1px solid var(--border);padding:8px 10px;cursor:pointer;white-space:nowrap;
   }
   table.resumen th:hover{color:var(--accent);}
-  table.resumen td{padding:8px 10px;border-bottom:1px solid #1e2731;font-family:var(--mono);white-space:nowrap;}
+  table.resumen td{padding:8px 10px;border-bottom:1px solid #e6ebf2;font-family:var(--mono);white-space:nowrap;}
   table.resumen tbody tr{cursor:pointer;}
   table.resumen tbody tr:hover{background:var(--panel-2);}
   .tag-up{color:var(--up);}
@@ -235,7 +235,6 @@
         <h1>Monitoreo Piezométrico — Tajo Cerro Corona</h1>
         <div class="sub">58 puntos de control · Pozos de producción, cuerda vibrante, Casagrande y drenes</div>
       </div>
-      <div class="sync-info" id="syncInfo">cargando…</div>
     </div>
     <div class="chips" id="chipsRow"></div>
     <nav class="tabs">
@@ -260,10 +259,10 @@
           <div class="pz-list" id="mapPzList"></div>
         </div>
         <div class="map-column">
-          <div class="preset-row">
+          <div class="preset-row map-sync-width">
             <button class="btn-preset" id="presetHidraulica"><span class="ico">🛡️</span> Piezómetros de monitoreo - Contención Hidráulica</button>
           </div>
-          <div class="map-toolbar">
+          <div class="map-toolbar map-sync-width">
             <div class="type-filters" id="typeFilters"></div>
             <div class="legend">
               <span><span class="dot" style="background:var(--up)"></span>Subiendo</span>
@@ -275,9 +274,10 @@
           </div>
           <div class="map-outer" id="mapOuter">
             <div class="zoom-ctl">
-              <button id="zoomIn">+</button>
-              <button id="zoomReset">⟳</button>
-              <button id="zoomOut">–</button>
+              <button id="zoomIn" title="Acercar">+</button>
+              <button id="zoomReset" title="Restablecer zoom">⟳</button>
+              <button id="zoomOut" title="Alejar">–</button>
+              <button id="panToggle" class="active" title="Mover el plano (arrastrar)">✋</button>
             </div>
             <div class="map-scale" id="mapScale">
               <img src="plano_tajo.jpg" id="mapImg" alt="Plano Tajo Cerro Corona">
@@ -285,7 +285,7 @@
             </div>
             <div class="tooltip" id="tooltip"></div>
           </div>
-          <p class="foot-note">
+          <p class="foot-note map-sync-width">
             Color = tendencia del nivel piezométrico en los últimos <span id="fnWindow">30</span> días (umbral ±<span id="fnEpsilon">0.10</span> m). Cada etiqueta muestra el ID y el último nivel registrado. La ubicación de cada punto se calculó a partir de la grilla de coordenadas UTM impresa en el plano — clic en un punto para ver su serie histórica. Rueda del mouse sobre el plano = zoom (no afecta el resto de la página).
           </p>
         </div>
@@ -406,7 +406,7 @@ function classifyTipo(raw){
   return 'Otro';
 }
 const TYPE_COLORS = {
-  'Pozo de Producción':'#f0a24e','Casagrande':'#4fb0c6','Dren':'#c98bd6','Cuerda Vibrante':'#8fa0b3','Otro':'#8fa0b3'
+  'Pozo de Producción':'#f0a24e','Casagrande':'#4fb0c6','Dren':'#c98bd6','Cuerda Vibrante':'#5b6b85','Otro':'#5b6b85'
 };
 
 /* ---- Fecha helpers -------------------------------------------------------- */
@@ -519,7 +519,7 @@ function renderTypeFilters(){
   types.forEach(t=>{
     STATE.typeVisibility[t] = true;
     const lab = document.createElement('label');
-    lab.innerHTML = `<input type="checkbox" checked data-type="${t}"> <span style="color:${TYPE_COLORS[t]||'#8fa0b3'}">●</span> ${t}`;
+    lab.innerHTML = `<input type="checkbox" checked data-type="${t}"> <span style="color:${TYPE_COLORS[t]||'#5b6b85'}">●</span> ${t}`;
     lab.querySelector('input').addEventListener('change', e=>{
       STATE.typeVisibility[t] = e.target.checked;
       document.querySelectorAll(`.marker-wrap[data-type="${CSS.escape(t)}"]`).forEach(m=>{
@@ -637,8 +637,20 @@ function positionTooltip(ev){
 }
 
 let zoomLevel = 1;
+function syncMapColumnWidth(){
+  const mapScale = document.getElementById('mapScale');
+  const rect = mapScale.getBoundingClientRect();
+  if(!rect.width) return;
+  const w = rect.width / zoomLevel;
+  document.querySelectorAll('.map-sync-width').forEach(el=>{ el.style.width = w+'px'; el.style.maxWidth = w+'px'; });
+}
+window.addEventListener('resize', ()=> syncMapColumnWidth());
+document.getElementById('mapImg').addEventListener('load', syncMapColumnWidth);
+
 function applyZoom(){
   document.getElementById('mapScale').style.transform = `scale(${zoomLevel})`;
+  const counter = 1/zoomLevel;
+  document.querySelectorAll('.marker-label').forEach(l=>{ l.style.transform = `scale(${counter})`; });
 }
 document.getElementById('zoomIn').addEventListener('click', ()=>{ zoomLevel=Math.min(zoomLevel+0.2,3); applyZoom(); });
 document.getElementById('zoomOut').addEventListener('click', ()=>{ zoomLevel=Math.max(zoomLevel-0.2,0.6); applyZoom(); });
@@ -646,8 +658,7 @@ document.getElementById('zoomReset').addEventListener('click', ()=>{ zoomLevel=1
 
 // Zoom con rueda del mouse, centrado en el cursor, aislado al plano (no afecta la página)
 const mapOuterEl = document.getElementById('mapOuter');
-mapOuterEl.addEventListener('wheel', (e)=>{
-  e.preventDefault();
+mapOuterEl.addEventListener('wheel', (e)=>{  e.preventDefault();
   e.stopPropagation();
   const rect = mapOuterEl.getBoundingClientRect();
   const offsetX = e.clientX - rect.left;
@@ -663,6 +674,34 @@ mapOuterEl.addEventListener('wheel', (e)=>{
     mapOuterEl.scrollTop = contentY*zoomLevel - offsetY;
   }
 }, { passive:false });
+
+// Herramienta de mano: arrastrar para mover el plano
+let panEnabled = true;
+let isPanning = false, panStartX=0, panStartY=0, panScrollL=0, panScrollT=0;
+function updatePanCursor(){
+  mapOuterEl.style.cursor = panEnabled ? 'grab' : 'default';
+}
+document.getElementById('panToggle').addEventListener('click', (e)=>{
+  panEnabled = !panEnabled;
+  e.currentTarget.classList.toggle('active', panEnabled);
+  updatePanCursor();
+});
+mapOuterEl.addEventListener('mousedown', (e)=>{
+  if(!panEnabled) return;
+  isPanning = true;
+  panStartX = e.clientX; panStartY = e.clientY;
+  panScrollL = mapOuterEl.scrollLeft; panScrollT = mapOuterEl.scrollTop;
+  mapOuterEl.style.cursor = 'grabbing';
+});
+window.addEventListener('mousemove', (e)=>{
+  if(!isPanning) return;
+  mapOuterEl.scrollLeft = panScrollL - (e.clientX - panStartX);
+  mapOuterEl.scrollTop = panScrollT - (e.clientY - panStartY);
+});
+window.addEventListener('mouseup', ()=>{
+  if(isPanning){ isPanning=false; updatePanCursor(); }
+});
+updatePanCursor();
 
 /* ======================================================================
    RENDER: CHIPS (resumen superior)
@@ -684,9 +723,7 @@ function renderChips(){
     <div class="chip stable"><div class="n">${stable}</div><div class="l">Estables</div></div>
     <div class="chip warn"><div class="n">${staleCount}</div><div class="l">Sin dato &gt;10 días</div></div>
   `;
-  document.getElementById('syncInfo').innerHTML = CONFIG.USE_GOOGLE_SHEETS
-    ? `Fuente: <b>Google Sheets</b> · cargado ${new Date().toLocaleString('es-PE')}`
-    : `Fuente: <b>datos embebidos</b> (PIEZOMETRIA.xlsx, desde 2024-01-01) · ver instrucciones para conectar Google Sheets`;
+  // (indicador de fuente de datos eliminado de la interfaz por solicitud del usuario)
 }
 
 /* ======================================================================
@@ -792,12 +829,12 @@ function updateChart(){
       responsive:true, maintainAspectRatio:false,
       interaction:{mode:'nearest', intersect:false},
       plugins:{
-        legend:{labels:{color:'#e7ecf1', boxWidth:12, font:{size:11}}},
+        legend:{labels:{color:'#16233f', boxWidth:12, font:{size:11}}},
         tooltip:{callbacks:{label: c=> `${c.dataset.label}: ${c.parsed.y.toFixed(2)} msnm`}}
       },
       scales:{
-        x:{type:'time', time:{unit:'month'}, ticks:{color:'#8fa0b3'}, grid:{color:'#1e2731'}},
-        y:{title:{display:true,text:'Nivel piezométrico (msnm)',color:'#8fa0b3'}, ticks:{color:'#8fa0b3'}, grid:{color:'#1e2731'}}
+        x:{type:'time', time:{unit:'month'}, ticks:{color:'#4a5b7c'}, grid:{color:'#e9edf4'}},
+        y:{title:{display:true,text:'Nivel piezométrico (msnm)',color:'#4a5b7c'}, ticks:{color:'#4a5b7c'}, grid:{color:'#e9edf4'}}
       }
     }
   });
@@ -936,6 +973,8 @@ async function init(){
   renderPzList();
   renderWallFilters();
   renderResumen();
+  syncMapColumnWidth();
+  setTimeout(syncMapColumnWidth, 150);
 
   // rango de fechas por defecto: últimos 6 meses de datos disponibles
   let maxDate = null;
