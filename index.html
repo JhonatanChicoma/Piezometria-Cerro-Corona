@@ -90,12 +90,22 @@
   .legend .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;}
   .legend label{display:flex;align-items:center;gap:5px;cursor:pointer;}
   .legend input{accent-color:var(--accent);}
-  .zoom-ctl{display:flex;gap:6px;}
+  .zoom-ctl{display:flex;flex-direction:column;gap:6px;position:absolute;top:12px;right:12px;z-index:30;}
   .zoom-ctl button{
-    background:var(--panel);border:1px solid var(--border);color:var(--text);
-    width:30px;height:30px;border-radius:7px;cursor:pointer;font-size:15px;
+    background:rgba(26,34,44,.92);border:1px solid var(--border);color:var(--text);
+    width:32px;height:32px;border-radius:7px;cursor:pointer;font-size:16px;
+    box-shadow:0 3px 10px rgba(0,0,0,.4);
   }
   .zoom-ctl button:hover{border-color:var(--accent);color:var(--accent);}
+
+  .preset-row{margin-bottom:12px;}
+  .btn-preset{
+    background:linear-gradient(180deg,#2a3646,#1e2831);border:1px solid var(--accent-dim);
+    color:var(--accent);padding:9px 16px;border-radius:8px;font-size:12.5px;font-weight:600;
+    cursor:pointer;font-family:var(--sans);display:inline-flex;align-items:center;gap:7px;
+  }
+  .btn-preset:hover{border-color:var(--accent);background:linear-gradient(180deg,#31404f,#232f39);}
+  .btn-preset .ico{font-size:14px;}
 
   .map-outer{
     border:1px solid var(--border);border-radius:var(--radius);overflow:auto;
@@ -107,7 +117,7 @@
   .marker-wrap{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;gap:5px;}
   .marker-wrap.hidden-type,.marker-wrap.hidden-pz{display:none;}
   .marker{
-    position:relative;width:14px;height:14px;min-width:14px;border-radius:50%;
+    position:relative;width:16px;height:16px;min-width:16px;border-radius:50%;
     cursor:pointer;border:2px solid rgba(10,14,18,.85);
     box-shadow:0 0 0 2px rgba(255,255,255,.15);
   }
@@ -122,12 +132,12 @@
   .marker.nodata{background:var(--nodata);color:var(--nodata);}
 
   .marker-label{
-    pointer-events:none;background:rgba(11,14,18,.82);border:1px solid var(--border);
-    border-radius:5px;padding:2px 6px;font-size:9.5px;line-height:1.25;white-space:nowrap;
+    pointer-events:none;background:rgba(11,14,18,.85);border:1px solid var(--border);
+    border-radius:6px;padding:4px 9px;font-size:20px;line-height:1.25;white-space:nowrap;
     box-shadow:0 2px 6px rgba(0,0,0,.4);
   }
-  .marker-label b{display:block;font-size:9.5px;color:var(--text);font-weight:600;}
-  .marker-label span{display:block;font-family:var(--mono);}
+  .marker-label b{display:block;font-size:20px;color:var(--text);font-weight:700;}
+  .marker-label span{display:block;font-family:var(--mono);font-size:18px;}
   .marker-label.up span{color:var(--up);}
   .marker-label.down span{color:var(--down);}
   .marker-label.stable span{color:var(--stable);}
@@ -249,6 +259,9 @@
           <div class="pz-list" id="mapPzList"></div>
         </div>
         <div>
+          <div class="preset-row">
+            <button class="btn-preset" id="presetHidraulica"><span class="ico">🛡️</span> Piezómetros de monitoreo - Contención Hidráulica</button>
+          </div>
           <div class="map-toolbar">
             <div class="type-filters" id="typeFilters"></div>
             <div class="legend">
@@ -258,13 +271,13 @@
               <span><span class="dot" style="background:var(--nodata)"></span>Sin dato reciente</span>
               <label><input type="checkbox" id="toggleLabels" checked> Mostrar etiquetas</label>
             </div>
-            <div class="zoom-ctl">
-              <button id="zoomOut">–</button>
-              <button id="zoomReset">⟳</button>
-              <button id="zoomIn">+</button>
-            </div>
           </div>
           <div class="map-outer" id="mapOuter">
+            <div class="zoom-ctl">
+              <button id="zoomIn">+</button>
+              <button id="zoomReset">⟳</button>
+              <button id="zoomOut">–</button>
+            </div>
             <div class="map-scale" id="mapScale">
               <img src="plano_tajo.jpg" id="mapImg" alt="Plano Tajo Cerro Corona">
               <div id="markersLayer" class="markers-layer"></div>
@@ -272,7 +285,7 @@
             <div class="tooltip" id="tooltip"></div>
           </div>
           <p class="foot-note">
-            Color = tendencia del nivel piezométrico en los últimos <span id="fnWindow">30</span> días (umbral ±<span id="fnEpsilon">0.10</span> m). Cada etiqueta muestra el ID y el último nivel registrado. La ubicación de cada punto se calculó a partir de la grilla de coordenadas UTM impresa en el plano — clic en un punto para ver su serie histórica.
+            Color = tendencia del nivel piezométrico en los últimos <span id="fnWindow">30</span> días (umbral ±<span id="fnEpsilon">0.10</span> m). Cada etiqueta muestra el ID y el último nivel registrado. La ubicación de cada punto se calculó a partir de la grilla de coordenadas UTM impresa en el plano — clic en un punto para ver su serie histórica. Rueda del mouse sobre el plano = zoom (no afecta el resto de la página).
           </p>
         </div>
       </div>
@@ -290,6 +303,10 @@
           <div class="date-range">
             <input type="date" id="dateFrom">
             <input type="date" id="dateTo">
+          </div>
+          <div class="toggle-row">
+            <input type="checkbox" id="showHidraulica">
+            <label for="showHidraulica">Mostrar línea Contención Hidráulica (3690 msnm)</label>
           </div>
         </div>
         <div>
@@ -347,11 +364,19 @@
                que tengas ese día — el resto se puede dejar en blanco.
    ========================================================================== */
 const CONFIG = {
-  USE_GOOGLE_SHEETS: true,
+  USE_GOOGLE_SHEETS: TRUE,
   MAESTRO_CSV_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6KrH9GrY2eAFYOEOqXq0NKL5IupZ_Yj_MwzoJ2yRiZtSoc4V4okaSvF_2Yakgow/pub?gid=1928036866&single=true&output=csv",
   LECTURAS_CSV_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6KrH9GrY2eAFYOEOqXq0NKL5IupZ_Yj_MwzoJ2yRiZtSoc4V4okaSvF_2Yakgow/pub?gid=572458879&single=true&output=csv",
   TREND_WINDOW_DAYS: 30,
   TREND_EPSILON_M: 0.10,
+  HIDRAULICA_COTA: 3690,
+  // Piezómetros de monitoreo - Contención Hidráulica (lista identificada a partir
+  // del plano de referencia). Si falta o sobra alguno, edita este arreglo.
+  HIDRAULICA_IDS: [
+    'VW-1810','VW-2104','VW-DH-2205','VW-DH-1913','VW-2309','VW19-14','VW14-11','VW14-06',
+    'VW-1806','VW-1807','VW-DH-2101','PC17-02','GF-03','GF-01','GF-02-A',
+    'VW17-03','VW-DH-2103','PP-16','PC-ANG-2301'
+  ],
 };
 
 /* ---- Transformación UTM -> % de la imagen -----------------------------
@@ -575,6 +600,17 @@ document.getElementById('mapHideAll').addEventListener('click', ()=>{
 document.getElementById('toggleLabels').addEventListener('change', e=>{
   document.getElementById('markersLayer').classList.toggle('labels-off', !e.target.checked);
 });
+document.getElementById('presetHidraulica').addEventListener('click', ()=>{
+  const idsSet = new Set(CONFIG.HIDRAULICA_IDS);
+  // Asegura que ningún filtro por tipo esté ocultando el grupo
+  document.querySelectorAll('.type-filters input[type=checkbox]').forEach(cb=>{
+    cb.checked = true;
+    STATE.typeVisibility[cb.dataset.type] = true;
+  });
+  document.querySelectorAll('.marker-wrap').forEach(w=> w.classList.remove('hidden-type'));
+  STATE.maestro.forEach(m=> setMapVisibility(m.id, idsSet.has(m.id)));
+  renderMapPzList(document.getElementById('mapPzSearch').value);
+});
 function showTooltip(m, trend, ev){
   const tooltip = document.getElementById('tooltip');
   const arrow = trend.delta===null ? '—' : (trend.delta>=CONFIG.TREND_EPSILON_M ? '↑' : (trend.delta<=-CONFIG.TREND_EPSILON_M ? '↓':'→'));
@@ -605,7 +641,27 @@ function applyZoom(){
 }
 document.getElementById('zoomIn').addEventListener('click', ()=>{ zoomLevel=Math.min(zoomLevel+0.2,3); applyZoom(); });
 document.getElementById('zoomOut').addEventListener('click', ()=>{ zoomLevel=Math.max(zoomLevel-0.2,0.6); applyZoom(); });
-document.getElementById('zoomReset').addEventListener('click', ()=>{ zoomLevel=1; applyZoom(); });
+document.getElementById('zoomReset').addEventListener('click', ()=>{ zoomLevel=1; applyZoom(); document.getElementById('mapOuter').scrollTo(0,0); });
+
+// Zoom con rueda del mouse, centrado en el cursor, aislado al plano (no afecta la página)
+const mapOuterEl = document.getElementById('mapOuter');
+mapOuterEl.addEventListener('wheel', (e)=>{
+  e.preventDefault();
+  e.stopPropagation();
+  const rect = mapOuterEl.getBoundingClientRect();
+  const offsetX = e.clientX - rect.left;
+  const offsetY = e.clientY - rect.top;
+  const contentX = (mapOuterEl.scrollLeft + offsetX) / zoomLevel;
+  const contentY = (mapOuterEl.scrollTop + offsetY) / zoomLevel;
+  const oldZoom = zoomLevel;
+  const dir = e.deltaY > 0 ? -1 : 1;
+  zoomLevel = Math.min(3, Math.max(0.6, +(zoomLevel + dir*0.15).toFixed(3)));
+  if(zoomLevel !== oldZoom){
+    applyZoom();
+    mapOuterEl.scrollLeft = contentX*zoomLevel - offsetX;
+    mapOuterEl.scrollTop = contentY*zoomLevel - offsetY;
+  }
+}, { passive:false });
 
 /* ======================================================================
    RENDER: CHIPS (resumen superior)
@@ -692,6 +748,7 @@ function getDateRange(){
 
 function updateChart(){
   const {from, to} = getDateRange();
+  const showHidraulica = document.getElementById('showHidraulica').checked;
   const datasets = [];
   STATE.selected.forEach(pz=>{
     const s = STATE.series[pz] || [];
@@ -701,9 +758,23 @@ function updateChart(){
       pointRadius: pts.length>200?0:2, borderWidth: 1.8, tension: .15, spanGaps: true,
     });
   });
+  if(showHidraulica && (from || to)){
+    const x0 = from || (datasets[0] && datasets[0].data[0] && datasets[0].data[0].x);
+    const x1 = to || (datasets[0] && datasets[0].data[datasets[0].data.length-1] && datasets[0].data[datasets[0].data.length-1].x);
+    if(x0 && x1){
+      datasets.push({
+        label:'Contención Hidráulica', data:[{x:x0,y:CONFIG.HIDRAULICA_COTA},{x:x1,y:CONFIG.HIDRAULICA_COTA}],
+        borderColor:'#e2604f', borderDash:[7,5], borderWidth:2, pointRadius:0, order:0,
+      });
+    }
+  }
 
   const ctx = document.getElementById('chart').getContext('2d');
   if(chartInstance) chartInstance.destroy();
+  if(STATE.selected.size===0 && !showHidraulica){
+    document.getElementById('statCards').innerHTML = `<div class="empty-msg">Selecciona uno o más piezómetros de la lista (o un grupo por pared) para ver su serie histórica.</div>`;
+    return;
+  }
   if(datasets.length===0){
     document.getElementById('statCards').innerHTML = `<div class="empty-msg">Selecciona uno o más piezómetros de la lista (o un grupo por pared) para ver su serie histórica.</div>`;
     return;
@@ -848,6 +919,7 @@ document.getElementById('pzSearch').addEventListener('input', e=> renderPzList(e
 document.getElementById('resumenSearch').addEventListener('input', e=> renderResumen(e.target.value));
 document.getElementById('dateFrom').addEventListener('change', updateChart);
 document.getElementById('dateTo').addEventListener('change', updateChart);
+document.getElementById('showHidraulica').addEventListener('change', updateChart);
 
 /* ======================================================================
    INIT
