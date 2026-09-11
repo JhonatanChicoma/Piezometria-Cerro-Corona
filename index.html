@@ -71,7 +71,7 @@
 
   /* ---------- UBICACION ---------- */
   .ubicacion-layout{display:grid;grid-template-columns:260px 1fr;gap:18px;align-items:start;}
-  .map-column{width:fit-content;max-width:100%;}
+  .map-column{width:100%;}
   .map-panel .btn-row{display:flex;gap:6px;margin-bottom:10px;}
   .map-panel .btn-row .btn{flex:1;padding:6px 8px;font-size:11px;text-align:center;}
   .map-panel .pz-list{max-height:52vh;}
@@ -90,12 +90,19 @@
   .legend .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;}
   .legend label{display:flex;align-items:center;gap:5px;cursor:pointer;}
   .legend input{accent-color:var(--accent);}
+  .label-size-ctl{display:flex;gap:4px;}
+  .label-size-ctl button{
+    background:var(--panel);border:1px solid var(--border);color:var(--text);
+    width:26px;height:22px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;line-height:1;
+  }
+  .label-size-ctl button:hover{border-color:var(--accent);color:var(--accent);}
   .map-row{display:flex;gap:10px;align-items:flex-start;}
   .zoom-ctl{display:flex;flex-direction:column;gap:6px;}
   .zoom-ctl button{
     background:var(--panel);border:1px solid var(--border);color:var(--text);
-    width:34px;height:34px;border-radius:7px;cursor:pointer;font-size:16px;
-    box-shadow:0 1px 3px rgba(0,0,0,.12);
+    width:34px;height:34px;border-radius:7px;cursor:pointer;font-size:18px;font-weight:700;
+    box-shadow:0 1px 3px rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;line-height:1;
   }
   .zoom-ctl button:hover{border-color:var(--accent);color:var(--accent);}
   .zoom-ctl button.active{background:var(--accent);color:#1a1204;border-color:var(--accent);}
@@ -111,10 +118,12 @@
 
   .map-outer{
     border:1.5px solid var(--gold);border-radius:var(--radius);overflow:auto;
-    background:#0b0e12;height:52vh;position:relative;width:fit-content;max-width:100%;
+    background:#0b0e12;position:relative;
+    width:min(100%, calc(72vh * 1.1581));
+    aspect-ratio:2000/1727;
   }
-  .map-scale{position:relative;transform-origin:0 0;display:inline-block;height:100%;}
-  .map-scale img{display:block;height:100%;width:auto;max-width:none;user-select:none;-webkit-user-drag:none;}
+  .map-scale{position:relative;transform-origin:0 0;width:100%;height:100%;}
+  .map-scale img{display:block;width:100%;height:100%;user-select:none;-webkit-user-drag:none;}
 
   .marker-wrap{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;gap:5px;}
   .marker-wrap.hidden-type,.marker-wrap.hidden-pz{display:none;}
@@ -134,12 +143,17 @@
   .marker.nodata{background:var(--nodata);color:var(--nodata);}
 
   .marker-label{
-    pointer-events:none;background:rgba(11,14,18,.85);border:1px solid var(--border);
-    border-radius:5px;padding:2px 6px;font-size:10px;line-height:1.25;white-space:nowrap;
-    box-shadow:0 2px 6px rgba(0,0,0,.4);
+    pointer-events:none;background:transparent;border:none;box-shadow:none;
+    padding:0;line-height:1.2;white-space:nowrap;
   }
-  .marker-label b{display:block;font-size:10px;color:#eef1f5;font-weight:700;}
-  .marker-label span{display:block;font-family:var(--mono);font-size:9.5px;}
+  .marker-label b{
+    display:block;font-size:calc(11px * var(--label-scale,1));color:#ffffff;font-weight:800;
+    text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 5px rgba(0,0,0,.85);
+  }
+  .marker-label span{
+    display:block;font-family:var(--mono);font-size:calc(10px * var(--label-scale,1));font-weight:600;
+    text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 5px rgba(0,0,0,.85);
+  }
   .marker-label.up span{color:var(--up);}
   .marker-label.down span{color:var(--down);}
   .marker-label.stable span{color:var(--stable);}
@@ -271,6 +285,10 @@
               <span><span class="dot" style="background:var(--stable)"></span>Estable</span>
               <span><span class="dot" style="background:var(--nodata)"></span>Sin dato reciente</span>
               <label><input type="checkbox" id="toggleLabels" checked> Mostrar etiquetas</label>
+              <span class="label-size-ctl">
+                <button id="labelSizeDown" title="Reducir letra">A−</button>
+                <button id="labelSizeUp" title="Aumentar letra">A+</button>
+              </span>
             </div>
           </div>
           <div class="map-row">
@@ -601,6 +619,10 @@ document.getElementById('mapHideAll').addEventListener('click', ()=>{
 document.getElementById('toggleLabels').addEventListener('change', e=>{
   document.getElementById('markersLayer').classList.toggle('labels-off', !e.target.checked);
 });
+let labelScale = 1;
+function applyLabelScale(){ document.getElementById('markersLayer').style.setProperty('--label-scale', labelScale); }
+document.getElementById('labelSizeUp').addEventListener('click', ()=>{ labelScale = Math.min(2.4, +(labelScale+0.15).toFixed(2)); applyLabelScale(); });
+document.getElementById('labelSizeDown').addEventListener('click', ()=>{ labelScale = Math.max(0.5, +(labelScale-0.15).toFixed(2)); applyLabelScale(); });
 document.getElementById('presetHidraulica').addEventListener('click', ()=>{
   const idsSet = new Set(CONFIG.HIDRAULICA_IDS);
   // Asegura que ningún filtro por tipo esté ocultando el grupo
