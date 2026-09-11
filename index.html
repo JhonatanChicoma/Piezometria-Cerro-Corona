@@ -9,10 +9,10 @@
 <script src="piezo_data.js"></script>
 <style>
   :root{
-    --bg:#ffffff;
-    --panel:#f5f7fb;
-    --panel-2:#eaeef5;
-    --border:#d7dfea;
+    --bg:#e9eef6;
+    --panel:#ffffff;
+    --panel-2:#eef1f8;
+    --border:#d3dbe8;
     --text:#16233f;
     --text-dim:#4a5b7c;
     --text-faint:#8493ab;
@@ -90,11 +90,12 @@
   .legend .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;}
   .legend label{display:flex;align-items:center;gap:5px;cursor:pointer;}
   .legend input{accent-color:var(--accent);}
-  .zoom-ctl{display:flex;flex-direction:column;gap:6px;position:absolute;top:12px;right:12px;z-index:30;}
+  .map-row{display:flex;gap:10px;align-items:flex-start;}
+  .zoom-ctl{display:flex;flex-direction:column;gap:6px;}
   .zoom-ctl button{
-    background:rgba(26,34,44,.92);border:1px solid var(--border);color:var(--text);
-    width:32px;height:32px;border-radius:7px;cursor:pointer;font-size:16px;
-    box-shadow:0 3px 10px rgba(0,0,0,.4);
+    background:var(--panel);border:1px solid var(--border);color:var(--text);
+    width:34px;height:34px;border-radius:7px;cursor:pointer;font-size:16px;
+    box-shadow:0 1px 3px rgba(0,0,0,.12);
   }
   .zoom-ctl button:hover{border-color:var(--accent);color:var(--accent);}
   .zoom-ctl button.active{background:var(--accent);color:#1a1204;border-color:var(--accent);}
@@ -134,11 +135,11 @@
 
   .marker-label{
     pointer-events:none;background:rgba(11,14,18,.85);border:1px solid var(--border);
-    border-radius:5px;padding:3px 7px;font-size:13px;line-height:1.25;white-space:nowrap;
-    box-shadow:0 2px 6px rgba(0,0,0,.4);transform-origin:left center;
+    border-radius:5px;padding:2px 6px;font-size:10px;line-height:1.25;white-space:nowrap;
+    box-shadow:0 2px 6px rgba(0,0,0,.4);
   }
-  .marker-label b{display:block;font-size:13px;color:#eef1f5;font-weight:700;}
-  .marker-label span{display:block;font-family:var(--mono);font-size:12px;}
+  .marker-label b{display:block;font-size:10px;color:#eef1f5;font-weight:700;}
+  .marker-label span{display:block;font-family:var(--mono);font-size:9.5px;}
   .marker-label.up span{color:var(--up);}
   .marker-label.down span{color:var(--down);}
   .marker-label.stable span{color:var(--stable);}
@@ -272,22 +273,21 @@
               <label><input type="checkbox" id="toggleLabels" checked> Mostrar etiquetas</label>
             </div>
           </div>
-          <div class="map-outer" id="mapOuter">
+          <div class="map-row">
+            <div class="map-outer" id="mapOuter">
+              <div class="map-scale" id="mapScale">
+                <img src="plano_tajo.jpg" id="mapImg" alt="Plano Tajo Cerro Corona">
+                <div id="markersLayer" class="markers-layer"></div>
+              </div>
+              <div class="tooltip" id="tooltip"></div>
+            </div>
             <div class="zoom-ctl">
               <button id="zoomIn" title="Acercar">+</button>
               <button id="zoomReset" title="Restablecer zoom">⟳</button>
               <button id="zoomOut" title="Alejar">–</button>
               <button id="panToggle" class="active" title="Mover el plano (arrastrar)">✋</button>
             </div>
-            <div class="map-scale" id="mapScale">
-              <img src="plano_tajo.jpg" id="mapImg" alt="Plano Tajo Cerro Corona">
-              <div id="markersLayer" class="markers-layer"></div>
-            </div>
-            <div class="tooltip" id="tooltip"></div>
           </div>
-          <p class="foot-note map-sync-width">
-            Color = tendencia del nivel piezométrico en los últimos <span id="fnWindow">30</span> días (umbral ±<span id="fnEpsilon">0.10</span> m). Cada etiqueta muestra el ID y el último nivel registrado. La ubicación de cada punto se calculó a partir de la grilla de coordenadas UTM impresa en el plano — clic en un punto para ver su serie histórica. Rueda del mouse sobre el plano = zoom (no afecta el resto de la página).
-          </p>
         </div>
       </div>
     </section>
@@ -650,7 +650,7 @@ document.getElementById('mapImg').addEventListener('load', syncMapColumnWidth);
 function applyZoom(){
   document.getElementById('mapScale').style.transform = `scale(${zoomLevel})`;
   const counter = 1/zoomLevel;
-  document.querySelectorAll('.marker-label').forEach(l=>{ l.style.transform = `scale(${counter})`; });
+  document.querySelectorAll('.marker-wrap').forEach(w=>{ w.style.transform = `translate(-50%,-50%) scale(${counter})`; });
 }
 document.getElementById('zoomIn').addEventListener('click', ()=>{ zoomLevel=Math.min(zoomLevel+0.2,3); applyZoom(); });
 document.getElementById('zoomOut').addEventListener('click', ()=>{ zoomLevel=Math.max(zoomLevel-0.2,0.6); applyZoom(); });
@@ -963,12 +963,11 @@ document.getElementById('showHidraulica').addEventListener('change', updateChart
    INIT
    ====================================================================== */
 async function init(){
-  document.getElementById('fnWindow').textContent = CONFIG.TREND_WINDOW_DAYS;
-  document.getElementById('fnEpsilon').textContent = CONFIG.TREND_EPSILON_M.toFixed(2);
   await loadData();
   renderChips();
   renderTypeFilters();
   renderMarkers();
+  applyZoom();
   renderMapPzList();
   renderPzList();
   renderWallFilters();
