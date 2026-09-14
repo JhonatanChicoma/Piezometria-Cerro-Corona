@@ -151,7 +151,7 @@
     text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 5px rgba(0,0,0,.85);
   }
   .marker-label span{
-    display:block;font-family:var(--mono);font-size:calc(10px * var(--label-scale,1));font-weight:600;
+    display:block;font-family:var(--mono);font-size:calc(10.5px * var(--label-scale,1));font-weight:700;
     text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 5px rgba(0,0,0,.85);
   }
   .marker-label.up span{color:var(--up);}
@@ -161,13 +161,13 @@
   .markers-layer.labels-off .marker-label{display:none;}
 
   .tooltip{
-    position:absolute;z-index:50;background:#0d1319;border:1px solid var(--border);
+    position:absolute;z-index:50;background:#0d1319;border:1px solid #34404d;
     border-radius:8px;padding:10px 13px;font-size:12px;min-width:190px;
     pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.5);display:none;
   }
   .tooltip h4{margin:0 0 6px 0;font-size:13.5px;color:var(--accent);font-family:var(--mono);}
-  .tooltip .row{display:flex;justify-content:space-between;gap:16px;color:var(--text-dim);margin:2px 0;}
-  .tooltip .row b{color:var(--text);font-family:var(--mono);font-weight:500;}
+  .tooltip .row{display:flex;justify-content:space-between;gap:16px;color:#9fb0c3;margin:2px 0;}
+  .tooltip .row b{color:#f1f4f8;font-family:var(--mono);font-weight:600;}
 
   /* ---------- ANALISIS ---------- */
   .analisis-layout{display:grid;grid-template-columns:280px 1fr;gap:18px;align-items:start;}
@@ -184,6 +184,10 @@
     padding:4px 10px;border-radius:14px;font-size:11px;cursor:pointer;font-family:var(--sans);
   }
   .wall-filters button:hover{border-color:var(--accent);color:var(--accent);}
+  .wall-filters button.hidraulica-chip{
+    background:linear-gradient(180deg,#1c2a42,#142032);border-color:var(--gold);color:var(--accent);font-weight:700;
+  }
+  .wall-filters button.hidraulica-chip:hover{background:linear-gradient(180deg,#243450,#1a2840);}
   .wall-filters button.clear{color:var(--text-faint);}
   .pz-list label{
     display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 6px;border-radius:6px;cursor:pointer;color:var(--text-dim);
@@ -761,6 +765,16 @@ function renderWallFilters(){
     (groups[w] = groups[w]||[]).push(m.id);
   });
   box.innerHTML='';
+  const hidraulicaBtn = document.createElement('button');
+  hidraulicaBtn.textContent = `🛡️ Contención Hidráulica (${CONFIG.HIDRAULICA_IDS.length})`;
+  hidraulicaBtn.className = 'hidraulica-chip';
+  hidraulicaBtn.addEventListener('click', ()=>{
+    const validIds = new Set(STATE.maestro.map(m=>m.id));
+    STATE.selected = new Set(CONFIG.HIDRAULICA_IDS.filter(id=>validIds.has(id)));
+    renderPzList(document.getElementById('pzSearch').value);
+    updateChart();
+  });
+  box.appendChild(hidraulicaBtn);
   Object.keys(groups).sort().forEach(wall=>{
     const btn = document.createElement('button');
     btn.textContent = `${wall} (${groups[wall].length})`;
