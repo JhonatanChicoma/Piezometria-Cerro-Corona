@@ -206,6 +206,7 @@
   .chart-card{background:var(--panel);border:1.5px solid var(--gold);border-radius:var(--radius);padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);max-width:980px;}
   .chart-card canvas{max-height:440px;}
   .chart-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
+  .chart-toolbar-outside{margin-bottom:12px;}
   .chart-toolbar-label{font-size:11px;color:var(--text-dim);margin-right:2px;}
   .chart-toolbar button{
     background:var(--panel-2);border:1px solid var(--border);color:var(--text);
@@ -213,6 +214,11 @@
   }
   .chart-toolbar button:hover{border-color:var(--accent);color:var(--accent);}
   .chart-toolbar button.export-btn{margin-left:auto;color:var(--accent);border-color:var(--gold);font-weight:700;}
+  .chart-toolbar select{
+    background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    padding:5px 8px;border-radius:6px;font-size:11.5px;font-family:var(--sans);cursor:pointer;
+  }
+  .chart-toolbar select:hover{border-color:var(--accent);}
   .stat-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;max-width:980px;}
   .stat-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;border-left:3px solid var(--stable);}
   .stat-card .pzname{font-family:var(--mono);font-size:calc(12.5px * var(--chart-font-scale,1));color:var(--accent);margin-bottom:4px;}
@@ -339,15 +345,30 @@
             <input type="checkbox" id="showHidraulica">
             <label for="showHidraulica">Mostrar línea Contención Hidráulica (3690 msnm)</label>
           </div>
+          <div class="toggle-row">
+            <input type="checkbox" id="showPrecipitacion">
+            <label for="showPrecipitacion">Mostrar precipitación diaria (mm)</label>
+          </div>
+          <div class="toggle-row">
+            <input type="checkbox" id="showEmbalse">
+            <label for="showEmbalse">Mostrar cota del embalse InPit</label>
+          </div>
         </div>
         <div>
+          <div class="chart-toolbar chart-toolbar-outside">
+            <span class="chart-toolbar-label">Tamaño de letra</span>
+            <button id="chartFontDown" title="Reducir letra">Aa−</button>
+            <button id="chartFontUp" title="Aumentar letra">Aa+</button>
+            <span class="chart-toolbar-label">Eje de fechas</span>
+            <select id="chartTimeUnit">
+              <option value="day">Día</option>
+              <option value="week">Semana</option>
+              <option value="month" selected>Mes</option>
+              <option value="year">Año</option>
+            </select>
+            <button id="chartExport" title="Descargar gráfico como imagen" class="export-btn">💾 Exportar imagen</button>
+          </div>
           <div class="chart-card">
-            <div class="chart-toolbar">
-              <span class="chart-toolbar-label">Tamaño de letra</span>
-              <button id="chartFontDown" title="Reducir letra">Aa−</button>
-              <button id="chartFontUp" title="Aumentar letra">Aa+</button>
-              <button id="chartExport" title="Descargar gráfico como imagen" class="export-btn">💾 Exportar imagen</button>
-            </div>
             <canvas id="chart" height="130"></canvas>
           </div>
           <div class="stat-cards" id="statCards"></div>
@@ -397,6 +418,17 @@
      Lecturas: formato ANCHO — primera columna "Fecha" (una fila por día),
                y una columna por cada piezómetro con su ID como encabezado
                (ej. Fecha | PP-16 | PP-34 | VW-1801 | ...). Para agregar una
+               columna nueva, cualquier encabezado que NO coincida con un ID
+               del Maestro se ignora, EXCEPTO dos nombres reservados opcionales:
+                 - una columna cuyo encabezado contenga "Precipita" (ej.
+                   "Precipitacion_mm") → se grafica como barras en un eje
+                   secundario derecho.
+                 - una columna cuyo encabezado contenga "Embalse" o "InPit"
+                   (ej. "Cota_Embalse_InPit") → se grafica como línea punteada
+                   en el eje principal (msnm), junto a los piezómetros.
+               Ambas son un solo valor diario para todo el sitio (no por PZ),
+               y aparecen como checkboxes para activar/desactivar en el
+               gráfico de Análisis Temporal. Para agregar una
                lectura nueva, agrega una fila nueva y llena solo las columnas
                que tengas ese día — el resto se puede dejar en blanco.
    ========================================================================== */
@@ -456,7 +488,7 @@ function parseFecha(s){
 function daysBetween(a,b){ return Math.round((new Date(b) - new Date(a)) / 86400000); }
 
 /* ---- Estado global ---------------------------------------------------- */
-let STATE = { maestro: [], series: {}, selected: new Set(), mapVisible: new Set(), typeVisibility: {}, colorMap: {} };
+let STATE = { maestro: [], series: {}, aux: {precipitacion:[], cotaEmbalse:[]}, selected: new Set(), mapVisible: new Set(), typeVisibility: {}, colorMap: {} };
 const PALETTE = ['#f0a24e','#4fb0c6','#e2604f','#3fb389','#c98bd6','#e8d05a','#7ea6e0','#d97757'];
 
 function computeTrend(pzId){
@@ -517,11 +549,26 @@ async function loadData(){
       este:parseFloat(r[idx('este')]), norte:parseFloat(r[idx('norte')]),
       ubicacion:r[idx('ubicacion')]
     }));
-    // ---- Lecturas: formato ANCHO -> Fecha | PZ1 | PZ2 | ... ----
+    // ---- Lecturas: formato ANCHO -> Fecha | PZ1 | PZ2 | ... | Precipitacion_mm | Cota_Embalse_InPit ----
     const lHeader = lRows[0];
     const fechaCol = lHeader.findIndex(h=>h.trim().toLowerCase()==='fecha');
-    const pzCols = lHeader.map((h,i)=> i===fechaCol ? null : {i, id:h.trim()}).filter(Boolean);
+    const validIds = new Set(STATE.maestro.map(m=>m.id));
+    const idLookup = {};
+    STATE.maestro.forEach(m=> idLookup[m.id.trim().toLowerCase()] = m.id);
+    const isPrecipCol = h => /precipita/i.test(h);
+    const isEmbalseCol = h => /embalse|inpit/i.test(h);
+    const pzCols = [];
+    let precipCol = null, embalseCol = null;
+    lHeader.forEach((hRaw,i)=>{
+      if(i===fechaCol) return;
+      const h = hRaw.trim();
+      const norm = h.toLowerCase();
+      if(isPrecipCol(h)) precipCol = i;
+      else if(isEmbalseCol(h)) embalseCol = i;
+      else if(idLookup[norm]) pzCols.push({i, id:idLookup[norm]});
+    });
     const series = {};
+    const precipitacion = [], cotaEmbalse = [];
     for(const r of lRows.slice(1)){
       const fecha = parseFecha(r[fechaCol]);
       if(!fecha) continue;
@@ -532,12 +579,30 @@ async function loadData(){
         if(isNaN(nivel)) continue;
         (series[id] = series[id]||[]).push([fecha, nivel]);
       }
+      if(precipCol!==null){
+        const raw = r[precipCol];
+        if(raw!==undefined && raw!==null && String(raw).trim()!==''){
+          const v = parseFloat(raw);
+          if(!isNaN(v)) precipitacion.push([fecha, v]);
+        }
+      }
+      if(embalseCol!==null){
+        const raw = r[embalseCol];
+        if(raw!==undefined && raw!==null && String(raw).trim()!==''){
+          const v = parseFloat(raw);
+          if(!isNaN(v)) cotaEmbalse.push([fecha, v]);
+        }
+      }
     }
     for(const k in series) series[k].sort((a,b)=> a[0]<b[0]?-1:1);
+    precipitacion.sort((a,b)=> a[0]<b[0]?-1:1);
+    cotaEmbalse.sort((a,b)=> a[0]<b[0]?-1:1);
     STATE.series = series;
+    STATE.aux = { precipitacion, cotaEmbalse };
   } else {
     STATE.maestro = PIEZO_DATA.maestro;
     STATE.series = PIEZO_DATA.series;
+    STATE.aux = PIEZO_DATA.aux || { precipitacion:[], cotaEmbalse:[] };
   }
   STATE.maestro.forEach((m,i)=>{
     STATE.colorMap[m.id] = PALETTE[i % PALETTE.length];
@@ -561,6 +626,7 @@ function renderTypeFilters(){
       document.querySelectorAll(`.marker-wrap[data-type="${CSS.escape(t)}"]`).forEach(m=>{
         m.classList.toggle('hidden-type', !e.target.checked);
       });
+      scheduleLabelDeclutter();
     });
     box.appendChild(lab);
   });
@@ -599,12 +665,51 @@ function renderMarkers(){
     wrap.appendChild(label);
     layer.appendChild(wrap);
   });
+  scheduleLabelDeclutter();
+}
+
+/* ---- Anti-solape de etiquetas: separa verticalmente las etiquetas que se
+   encimen entre sí (visibles únicamente), recalculando tras cualquier cambio
+   de visibilidad, zoom o tamaño de letra. ------------------------------- */
+let _labelFixRAF = null;
+function scheduleLabelDeclutter(){
+  if(_labelFixRAF) cancelAnimationFrame(_labelFixRAF);
+  _labelFixRAF = requestAnimationFrame(()=>{ _labelFixRAF=null; resolveLabelOverlaps(); });
+}
+function resolveLabelOverlaps(){
+  const layer = document.getElementById('markersLayer');
+  if(!layer || layer.classList.contains('labels-off')) return;
+  const wraps = Array.from(layer.querySelectorAll('.marker-wrap')).filter(w=>
+    !w.classList.contains('hidden-pz') && !w.classList.contains('hidden-type')
+  );
+  const items = wraps.map(w=>({ label: w.querySelector('.marker-label'), dy:0 })).filter(it=>it.label);
+  items.forEach(it=>{ it.label.style.transform = 'translateY(0px)'; });
+  if(items.length < 2) return;
+  let rects = items.map(it=> it.label.getBoundingClientRect());
+  const pad = 1, shift = 7;
+  for(let iter=0; iter<5; iter++){
+    let moved=false;
+    for(let i=0;i<items.length;i++){
+      for(let j=i+1;j<items.length;j++){
+        const a=rects[i], b=rects[j];
+        if(a.left < b.right+pad && a.right > b.left-pad && a.top < b.bottom+pad && a.bottom > b.top-pad){
+          if(a.top <= b.top){ items[i].dy -= shift; items[j].dy += shift; }
+          else { items[i].dy += shift; items[j].dy -= shift; }
+          moved = true;
+        }
+      }
+    }
+    items.forEach(it=>{ it.label.style.transform = `translateY(${it.dy}px)`; });
+    rects = items.map(it=> it.label.getBoundingClientRect());
+    if(!moved) break;
+  }
 }
 
 function setMapVisibility(pzId, visible){
   if(visible) STATE.mapVisible.add(pzId); else STATE.mapVisible.delete(pzId);
   const wrap = document.querySelector(`.marker-wrap[data-pz="${CSS.escape(pzId)}"]`);
   if(wrap) wrap.classList.toggle('hidden-pz', !visible);
+  scheduleLabelDeclutter();
 }
 
 function renderMapPzList(filter=''){
@@ -636,9 +741,10 @@ document.getElementById('mapHideAll').addEventListener('click', ()=>{
 });
 document.getElementById('toggleLabels').addEventListener('change', e=>{
   document.getElementById('markersLayer').classList.toggle('labels-off', !e.target.checked);
+  scheduleLabelDeclutter();
 });
 let labelScale = 1;
-function applyLabelScale(){ document.getElementById('markersLayer').style.setProperty('--label-scale', labelScale); }
+function applyLabelScale(){ document.getElementById('markersLayer').style.setProperty('--label-scale', labelScale); scheduleLabelDeclutter(); }
 document.getElementById('labelSizeUp').addEventListener('click', ()=>{ labelScale = Math.min(2.4, +(labelScale+0.15).toFixed(2)); applyLabelScale(); });
 document.getElementById('labelSizeDown').addEventListener('click', ()=>{ labelScale = Math.max(0.5, +(labelScale-0.15).toFixed(2)); applyLabelScale(); });
 
@@ -651,12 +757,21 @@ document.getElementById('chartFontUp').addEventListener('click', ()=>{ chartFont
 document.getElementById('chartFontDown').addEventListener('click', ()=>{ chartFontScale = Math.max(0.7, +(chartFontScale-0.15).toFixed(2)); applyChartFontScale(); });
 document.getElementById('chartExport').addEventListener('click', ()=>{
   if(!chartInstance) return;
-  const url = chartInstance.toBase64Image('image/png',1);
+  const src = chartInstance.canvas;
+  const tmp = document.createElement('canvas');
+  tmp.width = src.width; tmp.height = src.height;
+  const tctx = tmp.getContext('2d');
+  tctx.fillStyle = '#ffffff';
+  tctx.fillRect(0,0,tmp.width,tmp.height);
+  tctx.drawImage(src,0,0);
+  const url = tmp.toDataURL('image/png',1);
   const a = document.createElement('a');
   a.href = url;
   a.download = `grafico_piezometros_${new Date().toISOString().slice(0,10)}.png`;
   a.click();
 });
+let chartTimeUnit = 'month';
+document.getElementById('chartTimeUnit').addEventListener('change', e=>{ chartTimeUnit = e.target.value; updateChart(); });
 document.getElementById('presetHidraulica').addEventListener('click', ()=>{
   const idsSet = new Set(CONFIG.HIDRAULICA_IDS);
   // Asegura que ningún filtro por tipo esté ocultando el grupo
@@ -700,13 +815,14 @@ function syncMapColumnWidth(){
   const w = rect.width / zoomLevel;
   document.querySelectorAll('.map-sync-width').forEach(el=>{ el.style.width = w+'px'; el.style.maxWidth = w+'px'; });
 }
-window.addEventListener('resize', ()=> syncMapColumnWidth());
+window.addEventListener('resize', ()=> { syncMapColumnWidth(); scheduleLabelDeclutter(); });
 document.getElementById('mapImg').addEventListener('load', syncMapColumnWidth);
 
 function applyZoom(){
   document.getElementById('mapScale').style.transform = `scale(${zoomLevel})`;
   const counter = 1/zoomLevel;
   document.querySelectorAll('.marker-wrap').forEach(w=>{ w.style.transform = `translate(-50%,-50%) scale(${counter})`; });
+  scheduleLabelDeclutter();
 }
 document.getElementById('zoomIn').addEventListener('click', ()=>{ zoomLevel=Math.min(zoomLevel*1.35,12); applyZoom(); });
 document.getElementById('zoomOut').addEventListener('click', ()=>{ zoomLevel=Math.max(zoomLevel/1.35,0.6); applyZoom(); });
@@ -864,13 +980,15 @@ function getDateRange(){
 function updateChart(){
   const {from, to} = getDateRange();
   const showHidraulica = document.getElementById('showHidraulica').checked;
+  const showPrecip = document.getElementById('showPrecipitacion').checked;
+  const showEmbalse = document.getElementById('showEmbalse').checked;
   const datasets = [];
   STATE.selected.forEach(pz=>{
     const s = STATE.series[pz] || [];
     const pts = s.filter(([f])=> (!from || f>=from) && (!to || f<=to)).map(([f,v])=>({x:f, y:v}));
     datasets.push({
       label: pz, data: pts, borderColor: STATE.colorMap[pz], backgroundColor: STATE.colorMap[pz],
-      pointRadius: pts.length>200?0:2, borderWidth: 1.8, tension: .15, spanGaps: true,
+      pointRadius: pts.length>200?0:2, borderWidth: 1.8, tension: .15, spanGaps: true, yAxisID:'y',
     });
   });
   if(showHidraulica && (from || to)){
@@ -879,14 +997,30 @@ function updateChart(){
     if(x0 && x1){
       datasets.push({
         label:'Contención Hidráulica', data:[{x:x0,y:CONFIG.HIDRAULICA_COTA},{x:x1,y:CONFIG.HIDRAULICA_COTA}],
-        borderColor:'#e2604f', borderDash:[7,5], borderWidth:2, pointRadius:0, order:0,
+        borderColor:'#e2604f', borderDash:[7,5], borderWidth:2, pointRadius:0, order:0, yAxisID:'y',
       });
     }
+  }
+  if(showEmbalse){
+    const s = STATE.aux.cotaEmbalse || [];
+    const pts = s.filter(([f])=> (!from || f>=from) && (!to || f<=to)).map(([f,v])=>({x:f, y:v}));
+    datasets.push({
+      type:'line', label:'Cota Embalse InPit', data:pts, borderColor:'#2f6fb8', backgroundColor:'#2f6fb8',
+      borderDash:[3,3], borderWidth:2.5, pointRadius:0, tension:.1, spanGaps:true, yAxisID:'y', order:0,
+    });
+  }
+  if(showPrecip){
+    const s = STATE.aux.precipitacion || [];
+    const pts = s.filter(([f])=> (!from || f>=from) && (!to || f<=to)).map(([f,v])=>({x:f, y:v}));
+    datasets.push({
+      type:'bar', label:'Precipitación diaria (mm)', data:pts, backgroundColor:'rgba(79,150,214,.55)',
+      borderColor:'rgba(79,150,214,.8)', borderWidth:1, yAxisID:'y1', order:2, barThickness:'flex',
+    });
   }
 
   const ctx = document.getElementById('chart').getContext('2d');
   if(chartInstance) chartInstance.destroy();
-  if(STATE.selected.size===0 && !showHidraulica){
+  if(STATE.selected.size===0 && !showHidraulica && !showEmbalse && !showPrecip){
     document.getElementById('statCards').innerHTML = `<div class="empty-msg">Selecciona uno o más piezómetros de la lista (o un grupo por pared) para ver su serie histórica.</div>`;
     return;
   }
@@ -898,6 +1032,18 @@ function updateChart(){
     document.getElementById('statCards').innerHTML = `<div class="empty-msg">⚠ No se pudo cargar la librería de gráficos (chart.umd.js). Verifica que ese archivo esté en la misma carpeta que este HTML.</div>`;
     return;
   }
+  const scalesConfig = {
+    x:{type:'time', time:{unit:chartTimeUnit}, ticks:{color:'#4a5b7c', font:{size:Math.round(11*chartFontScale)}}, grid:{color:'#e9edf4'}},
+    y:{title:{display:true,text:'Nivel piezométrico (msnm)',color:'#4a5b7c', font:{size:Math.round(12*chartFontScale)}}, ticks:{color:'#4a5b7c', font:{size:Math.round(11*chartFontScale)}}, grid:{color:'#e9edf4'}}
+  };
+  if(showPrecip){
+    scalesConfig.y1 = {
+      position:'right', min:0,
+      title:{display:true,text:'Precipitación diaria (mm)',color:'#4f96d6', font:{size:Math.round(12*chartFontScale)}},
+      ticks:{color:'#4f96d6', font:{size:Math.round(11*chartFontScale)}},
+      grid:{drawOnChartArea:false},
+    };
+  }
   try{
   chartInstance = new Chart(ctx, {
     type:'line',
@@ -907,12 +1053,9 @@ function updateChart(){
       interaction:{mode:'nearest', intersect:false},
       plugins:{
         legend:{labels:{color:'#16233f', boxWidth:12, font:{size:Math.round(11*chartFontScale)}}},
-        tooltip:{callbacks:{label: c=> `${c.dataset.label}: ${c.parsed.y.toFixed(2)} msnm`}}
+        tooltip:{callbacks:{label: c=> `${c.dataset.label}: ${c.parsed.y.toFixed(2)} ${c.dataset.yAxisID==='y1'?'mm':'msnm'}`}}
       },
-      scales:{
-        x:{type:'time', time:{unit:'month'}, ticks:{color:'#4a5b7c', font:{size:Math.round(11*chartFontScale)}}, grid:{color:'#e9edf4'}},
-        y:{title:{display:true,text:'Nivel piezométrico (msnm)',color:'#4a5b7c', font:{size:Math.round(12*chartFontScale)}}, ticks:{color:'#4a5b7c', font:{size:Math.round(11*chartFontScale)}}, grid:{color:'#e9edf4'}}
-      }
+      scales:scalesConfig
     }
   });
   } catch(err){
@@ -1035,6 +1178,8 @@ document.getElementById('resumenSearch').addEventListener('input', e=> renderRes
 document.getElementById('dateFrom').addEventListener('change', updateChart);
 document.getElementById('dateTo').addEventListener('change', updateChart);
 document.getElementById('showHidraulica').addEventListener('change', updateChart);
+document.getElementById('showPrecipitacion').addEventListener('change', updateChart);
+document.getElementById('showEmbalse').addEventListener('change', updateChart);
 
 /* ======================================================================
    INIT
