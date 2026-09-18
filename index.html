@@ -6,6 +6,7 @@
 <title>Monitoreo Piezométrico — Cerro Corona</title>
 <script src="chart.umd.js"></script>
 <script src="chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="html2canvas.min.js"></script>
 <script src="piezo_data.js"></script>
 <style>
   :root{
@@ -97,6 +98,12 @@
     display:flex;align-items:center;justify-content:center;line-height:1;
   }
   .label-size-ctl button:hover{border-color:var(--accent);color:var(--accent);}
+  .legend button.export-btn{
+    background:var(--panel-2);border:1px solid var(--gold);color:var(--accent);font-weight:700;
+    padding:5px 10px;border-radius:6px;font-size:11.5px;cursor:pointer;font-family:var(--sans);
+  }
+  .legend button.export-btn:hover{background:var(--panel);}
+  .legend button.export-btn:disabled{opacity:.55;cursor:wait;}
   .map-row{display:flex;gap:10px;align-items:flex-start;}
   .zoom-ctl{display:flex;flex-direction:column;gap:6px;}
   .zoom-ctl button{
@@ -219,6 +226,12 @@
     padding:5px 8px;border-radius:6px;font-size:11.5px;font-family:var(--sans);cursor:pointer;
   }
   .chart-toolbar select:hover{border-color:var(--accent);}
+  .chart-toolbar-check{
+    display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-dim);
+    background:var(--panel-2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;
+  }
+  .chart-toolbar-check:hover{border-color:var(--accent);color:var(--accent);}
+  .chart-toolbar-check input{accent-color:var(--accent);cursor:pointer;}
   .stat-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;max-width:980px;}
   .stat-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;border-left:3px solid var(--stable);}
   .stat-card .pzname{font-family:var(--mono);font-size:calc(12.5px * var(--chart-font-scale,1));color:var(--accent);margin-bottom:4px;}
@@ -307,6 +320,7 @@
                 <button id="labelSizeDown" title="Reducir letra">A−</button>
                 <button id="labelSizeUp" title="Aumentar letra">A+</button>
               </span>
+              <button id="mapExport" title="Descargar el plano con los piezómetros visibles como imagen" class="export-btn">💾 Exportar plano</button>
             </div>
           </div>
           <div class="map-row">
@@ -366,6 +380,9 @@
               <option value="month" selected>Mes</option>
               <option value="year">Año</option>
             </select>
+            <label class="chart-toolbar-check" title="Mostrar un punto por cada dato para inspeccionar valores día a día">
+              <input type="checkbox" id="chartShowMarkers"> Mostrar marcadores
+            </label>
             <button id="chartExport" title="Descargar gráfico como imagen" class="export-btn">💾 Exportar imagen</button>
           </div>
           <div class="chart-card">
@@ -433,9 +450,9 @@
                que tengas ese día — el resto se puede dejar en blanco.
    ========================================================================== */
 const CONFIG = {
-  USE_GOOGLE_SHEETS: true,
-  MAESTRO_CSV_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6KrH9GrY2eAFYOEOqXq0NKL5IupZ_Yj_MwzoJ2yRiZtSoc4V4okaSvF_2Yakgow/pub?gid=1928036866&single=true&output=csv",
-  LECTURAS_CSV_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6KrH9GrY2eAFYOEOqXq0NKL5IupZ_Yj_MwzoJ2yRiZtSoc4V4okaSvF_2Yakgow/pub?gid=572458879&single=true&output=csv",
+  USE_GOOGLE_SHEETS: false,
+  MAESTRO_CSV_URL: "",
+  LECTURAS_CSV_URL: "",
   TREND_WINDOW_DAYS: 30,
   TREND_EPSILON_M: 0.10,
   HIDRAULICA_COTA: 3690,
@@ -490,6 +507,17 @@ function daysBetween(a,b){ return Math.round((new Date(b) - new Date(a)) / 86400
 /* ---- Estado global ---------------------------------------------------- */
 let STATE = { maestro: [], series: {}, aux: {precipitacion:[], cotaEmbalse:[]}, selected: new Set(), mapVisible: new Set(), typeVisibility: {}, colorMap: {} };
 const PALETTE = ['#f0a24e','#4fb0c6','#e2604f','#3fb389','#c98bd6','#e8d05a','#7ea6e0','#d97757'];
+/* Genera un color único por índice usando rotación de matiz por ángulo dorado,
+   de modo que no se repitan ni se parezcan aunque haya muchos piezómetros. */
+function generateDistinctColor(i){
+  const goldenAngle = 137.508;
+  const hue = (i * goldenAngle) % 360;
+  const satBand = [72, 62, 82, 55];
+  const lightBand = [46, 56, 38, 62];
+  const s = satBand[i % satBand.length];
+  const l = lightBand[i % lightBand.length];
+  return `hsl(${hue.toFixed(1)} ${s}% ${l}%)`;
+}
 
 function computeTrend(pzId){
   const s = STATE.series[pzId];
@@ -605,7 +633,7 @@ async function loadData(){
     STATE.aux = PIEZO_DATA.aux || { precipitacion:[], cotaEmbalse:[] };
   }
   STATE.maestro.forEach((m,i)=>{
-    STATE.colorMap[m.id] = PALETTE[i % PALETTE.length];
+    STATE.colorMap[m.id] = i < PALETTE.length ? PALETTE[i] : generateDistinctColor(i - PALETTE.length);
     STATE.mapVisible.add(m.id);
   });
 }
@@ -748,6 +776,43 @@ function applyLabelScale(){ document.getElementById('markersLayer').style.setPro
 document.getElementById('labelSizeUp').addEventListener('click', ()=>{ labelScale = Math.min(2.4, +(labelScale+0.15).toFixed(2)); applyLabelScale(); });
 document.getElementById('labelSizeDown').addEventListener('click', ()=>{ labelScale = Math.max(0.5, +(labelScale-0.15).toFixed(2)); applyLabelScale(); });
 
+document.getElementById('mapExport').addEventListener('click', async ()=>{
+  const btn = document.getElementById('mapExport');
+  const mapOuterEl2 = document.getElementById('mapOuter');
+  if(typeof html2canvas === 'undefined'){
+    alert('No se pudo cargar la librería de exportación (html2canvas.min.js). Verifica que ese archivo esté en la misma carpeta que este HTML.');
+    return;
+  }
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = '⏳ Generando…';
+  try{
+    // Recalcula el anti-solape justo antes de capturar, por si algo cambió.
+    resolveLabelOverlaps();
+    await new Promise(r=>setTimeout(r,60));
+    const canvas = await html2canvas(mapOuterEl2, {
+      x: mapOuterEl2.scrollLeft,
+      y: mapOuterEl2.scrollTop,
+      width: mapOuterEl2.clientWidth,
+      height: mapOuterEl2.clientHeight,
+      scrollX: 0, scrollY: 0,
+      backgroundColor: '#0b0e12',
+      scale: 2,
+      useCORS: true,
+    });
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png',1);
+    a.download = `plano_piezometros_${new Date().toISOString().slice(0,10)}.png`;
+    a.click();
+  } catch(err){
+    console.error('Error exportando el plano:', err);
+    alert('Ocurrió un error al exportar el plano: '+err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+});
+
 let chartFontScale = 1;
 function applyChartFontScale(){
   document.querySelector('.analisis-layout').style.setProperty('--chart-font-scale', chartFontScale);
@@ -772,6 +837,7 @@ document.getElementById('chartExport').addEventListener('click', ()=>{
 });
 let chartTimeUnit = 'month';
 document.getElementById('chartTimeUnit').addEventListener('change', e=>{ chartTimeUnit = e.target.value; updateChart(); });
+document.getElementById('chartShowMarkers').addEventListener('change', ()=>{ updateChart(); });
 document.getElementById('presetHidraulica').addEventListener('click', ()=>{
   const idsSet = new Set(CONFIG.HIDRAULICA_IDS);
   // Asegura que ningún filtro por tipo esté ocultando el grupo
@@ -982,13 +1048,14 @@ function updateChart(){
   const showHidraulica = document.getElementById('showHidraulica').checked;
   const showPrecip = document.getElementById('showPrecipitacion').checked;
   const showEmbalse = document.getElementById('showEmbalse').checked;
+  const showMarkers = document.getElementById('chartShowMarkers').checked;
   const datasets = [];
   STATE.selected.forEach(pz=>{
     const s = STATE.series[pz] || [];
     const pts = s.filter(([f])=> (!from || f>=from) && (!to || f<=to)).map(([f,v])=>({x:f, y:v}));
     datasets.push({
       label: pz, data: pts, borderColor: STATE.colorMap[pz], backgroundColor: STATE.colorMap[pz],
-      pointRadius: pts.length>200?0:2, borderWidth: 1.8, tension: .15, spanGaps: true, yAxisID:'y',
+      pointRadius: showMarkers ? 3 : 0, pointHoverRadius: 5, borderWidth: 1.8, tension: .15, spanGaps: true, yAxisID:'y',
     });
   });
   if(showHidraulica && (from || to)){
