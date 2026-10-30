@@ -6,8 +6,9 @@
 <title>Monitoreo Piezométrico — Cerro Corona</title>
 <script src="chart.umd.js"></script>
 <script src="chartjs-adapter-date-fns.bundle.min.js"></script>
-<script src="html2canvas.min.js"></script>
 <script src="piezo_data.js"></script>
+<script src="topografia_data.js"></script>
+<script src="dashboard_config.js"></script>
 <style>
   :root{
     --bg:#e9eef6;
@@ -56,6 +57,14 @@
   .chip.down .n{color:var(--down);}
   .chip.stable .n{color:var(--stable);}
   .chip.warn .n{color:var(--accent);}
+  .chip.hid{border-color:var(--gold);background:#fffaf0;}
+  .chip.hid .n{color:var(--accent);}
+  .chip.emb{border-color:#9cc0e6;background:#f3f8fd;}
+  .chip.emb .n{color:#2f6fb8;}
+  .chip .l small{display:block;color:var(--text-faint);font-size:10px;}
+  .tag-hid{display:inline-block;background:#fff4d6;color:#8a6414;border:1px solid #e4c46a;border-radius:10px;padding:0 7px;font-family:var(--sans);font-size:10.5px;font-weight:700;}
+  .resumen-toolbar label.only-hid{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-dim);cursor:pointer;}
+  .resumen-toolbar label.only-hid input{accent-color:var(--accent);}
 
   nav.tabs{display:flex;gap:2px;}
   nav.tabs button{
@@ -123,14 +132,47 @@
   .btn-preset:hover{border-color:var(--accent);background:linear-gradient(180deg,#31404f,#232f39);}
   .btn-preset .ico{font-size:14px;}
 
+  /* Proporción exacta de la ortofoto georreferenciada: 1470.14 m (E) x 1277.92 m (N) */
+  .map-frame{position:relative;flex:1 1 0;min-width:0;max-width:calc(72vh * 1.1504);}
   .map-outer{
     border:1.5px solid var(--gold);border-radius:var(--radius);overflow:auto;
-    background:#0b0e12;position:relative;
-    width:min(100%, calc(72vh * 1.1581));
-    aspect-ratio:2000/1727;
+    background:#FBFCFE;position:relative;
+    width:100%;
+    aspect-ratio:1470.14/1277.92;
   }
   .map-scale{position:relative;transform-origin:0 0;width:100%;height:100%;}
   .map-scale img{display:block;width:100%;height:100%;user-select:none;-webkit-user-drag:none;}
+  .topo-svg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;}
+  .topo-svg text{font-family:var(--mono);}
+  /* Rótulos de coordenadas fijos al borde visible del plano */
+  .grid-overlay{position:absolute;inset:1.5px;pointer-events:none;overflow:hidden;border-radius:var(--radius);}
+  .grid-overlay .gl{position:absolute;font-family:var(--mono);font-size:10px;font-weight:600;color:#16233f;
+    background:rgba(255,255,255,.82);padding:0 4px;border-radius:3px;white-space:nowrap;}
+  .grid-overlay .gl.e{bottom:12px;transform:translateX(-50%);}
+  .grid-overlay .gl.n{left:2px;transform:translateY(-50%);}
+  .map-scalebar{position:absolute;right:10px;bottom:26px;pointer-events:none;font-family:var(--mono);font-size:10px;color:#16233f;
+    background:rgba(255,255,255,.85);padding:3px 6px 4px;border-radius:4px;}
+  .map-scalebar .bar{height:5px;border:1.5px solid #16233f;border-top:none;margin-top:2px;}
+  .map-layers{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:12px;color:var(--text-dim);
+    background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;margin-top:10px;}
+  .map-layers .lbl{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text);}
+  .map-layers label{display:inline-flex;gap:5px;align-items:center;cursor:pointer;}
+  .map-layers input[type=checkbox],.map-layers input[type=range]{accent-color:var(--accent);}
+  .map-layers input[type=range]{width:84px;}
+  .map-layers select,.map-layers input[type=number]{
+    background:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:3px 6px;font-size:12px;font-family:var(--sans);}
+  .map-layers input[type=number]{width:84px;font-family:var(--mono);}
+  .map-layers button{background:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:6px;
+    padding:4px 10px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:var(--sans);}
+  .map-layers button:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
+  .map-layers button:disabled{opacity:.45;cursor:not-allowed;}
+  .map-layers .info{font-family:var(--mono);font-size:11.5px;color:var(--text-dim);}
+  .map-layers + .map-layers{margin-top:6px;}
+  .map-note{font-size:11px;color:var(--text-faint);margin-top:6px;line-height:1.5;}
+  .data-banner{display:none;background:#fff4d6;border:1px solid #e4c46a;color:#6b4e00;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:12px;}
+  .preset-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .btn-ghost{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--sans);}
+  .btn-ghost:hover{border-color:var(--accent);color:var(--accent);}
 
   .marker-wrap{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;gap:5px;}
   .marker-wrap.hidden-type,.marker-wrap.hidden-pz{display:none;}
@@ -279,9 +321,10 @@
     <div class="top-row">
       <div class="title-block">
         <h1>Monitoreo Piezométrico — Tajo Cerro Corona</h1>
-        <div class="sub">58 puntos de control · Pozos de producción, cuerda vibrante, Casagrande y drenes</div>
+        <div class="sub" id="subTitle">Pozos de producción, cuerda vibrante, Casagrande y drenes</div>
       </div>
     </div>
+    <div class="data-banner" id="dataBanner"></div>
     <div class="chips" id="chipsRow"></div>
     <nav class="tabs">
       <button data-tab="ubicacion" class="active">📍 Ubicación</button>
@@ -307,6 +350,8 @@
         <div class="map-column">
           <div class="preset-row map-sync-width">
             <button class="btn-preset" id="presetHidraulica"><span class="ico">🛡️</span> Piezómetros de monitoreo - Contención Hidráulica</button>
+            <button class="btn-ghost" id="fitVisible" title="Acercar el plano a los piezómetros visibles">🎯 Ajustar a visibles</button>
+            <button class="btn-ghost" id="fitAll" title="Ver el plano completo">🗺️ Ver todo</button>
           </div>
           <div class="map-toolbar map-sync-width">
             <div class="type-filters" id="typeFilters"></div>
@@ -324,12 +369,17 @@
             </div>
           </div>
           <div class="map-row">
-            <div class="map-outer" id="mapOuter">
-              <div class="map-scale" id="mapScale">
-                <img src="plano_tajo.jpg" id="mapImg" alt="Plano Tajo Cerro Corona">
-                <div id="markersLayer" class="markers-layer"></div>
+            <div class="map-frame">
+              <div class="map-outer" id="mapOuter">
+                <div class="map-scale" id="mapScale">
+                  <img src="ortofoto_tajo.jpg" id="mapImg" alt="Ortofoto del tajo Cerro Corona">
+                  <svg class="topo-svg" id="topoSvg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg>
+                  <div id="markersLayer" class="markers-layer"></div>
+                </div>
+                <div class="tooltip" id="tooltip"></div>
               </div>
-              <div class="tooltip" id="tooltip"></div>
+              <div class="grid-overlay" id="gridOverlay"></div>
+              <div class="map-scalebar" id="mapScalebar"><span id="scalebarTxt"></span><div class="bar" id="scalebarBar"></div></div>
             </div>
             <div class="zoom-ctl">
               <button id="zoomIn" title="Acercar">+</button>
@@ -338,6 +388,33 @@
               <button id="panToggle" class="active" title="Mover el plano (arrastrar)">✋</button>
             </div>
           </div>
+          <div class="map-layers map-sync-width">
+            <span class="lbl">Topografía</span>
+            <label><input type="checkbox" id="mOrto" checked> Ortofoto</label>
+            <label>Transparencia <input type="range" id="mOrtoOp" min="10" max="100" value="85" aria-label="Opacidad de la ortofoto"></label>
+            <span class="lbl" style="margin-left:4px">Curvas</span>
+            <label><input type="checkbox" id="mC10" checked> c/10 m</label>
+            <label><input type="checkbox" id="mC5"> c/5 m</label>
+            <label><input type="checkbox" id="mC1"> c/1 m</label>
+            <label><input type="checkbox" id="mCL" checked> Cotas</label>
+            <label>Color
+              <select id="mCol" aria-label="Color de curvas">
+                <option value="marron">Marrón</option><option value="gris">Gris</option><option value="amarillo">Amarillo</option>
+              </select>
+            </label>
+            <label><input type="checkbox" id="mGrid" checked> Cuadrícula UTM</label>
+          </div>
+          <div class="map-layers map-sync-width">
+            <span class="lbl">Nivel de agua</span>
+            <label for="wZ">Cota (msnm)</label>
+            <input type="number" id="wZ" step="1" placeholder="ej. 3650">
+            <button id="wGo" type="button">Pintar nivel</button>
+            <button id="wEmb" type="button" title="Pinta el nivel con la última cota de embalse InPit de la hoja Lecturas">Usar cota embalse InPit</button>
+            <button id="wOff" type="button">Quitar</button>
+            <label>Transparencia <input type="range" id="wTr" min="0" max="90" value="25" aria-label="Transparencia del agua"></label>
+            <span class="info" id="wInfo"></span>
+          </div>
+          <p class="map-note map-sync-width">Ortofoto y curvas de nivel c/1 m del CAD <code>CN_Z1_Z2_020826_1M</code>. La ortofoto ya muestra el espejo de agua a la fecha del vuelo; “Pintar nivel” dibuja el espejo a la cota que indiques (entre las curvas del tajo) con su área y volumen aproximados.</p>
         </div>
       </div>
     </section>
@@ -397,6 +474,7 @@
     <section class="tab" id="tab-resumen">
       <div class="resumen-toolbar">
         <input class="search-box" id="resumenSearch" placeholder="Buscar por ID, tipo o ubicación…">
+        <label class="only-hid"><input type="checkbox" id="onlyHid"> Solo Contención Hidráulica</label>
         <button class="btn" id="downloadCsv">Descargar CSV</button>
       </div>
       <div class="table-wrap">
@@ -410,6 +488,8 @@
               <th data-key="ultima_fecha">Fecha</th>
               <th data-key="dias_sin_dato">Días sin dato</th>
               <th data-key="delta_30d">Tendencia (30d)</th>
+              <th data-key="hid" title="Piezómetro de monitoreo de Contención Hidráulica">Contención</th>
+              <th data-key="delta_hid" title="Último nivel menos la cota de Contención Hidráulica (solo piezómetros de contención)">Δ vs cota contención (m)</th>
             </tr>
           </thead>
           <tbody id="resumenBody"></tbody>
@@ -424,35 +504,20 @@
 <script>
 /* ==========================================================================
    CONFIGURACIÓN
-   Para pasar de datos embebidos (este archivo) a Google Sheets en vivo:
-   1. Sube PIEZOMETRIA.xlsx a Google Drive, ábrelo como Google Sheets (mantiene
-      las 2 pestañas: "Maestro" y "Lecturas").
-   2. Publica cada pestaña por separado como CSV (Archivo > Compartir >
-      Publicar en la web > selecciona la pestaña > formato CSV).
-   3. Pon USE_GOOGLE_SHEETS en true y pega ambas URLs abajo.
-   Columnas esperadas:
-     Maestro:  ID, Tipo, Este, Norte, Ubicacion
-     Lecturas: formato ANCHO — primera columna "Fecha" (una fila por día),
-               y una columna por cada piezómetro con su ID como encabezado
-               (ej. Fecha | PP-16 | PP-34 | VW-1801 | ...). Para agregar una
-               columna nueva, cualquier encabezado que NO coincida con un ID
-               del Maestro se ignora, EXCEPTO dos nombres reservados opcionales:
-                 - una columna cuyo encabezado contenga "Precipita" (ej.
-                   "Precipitacion_mm") → se grafica como barras en un eje
-                   secundario derecho.
-                 - una columna cuyo encabezado contenga "Embalse" o "InPit"
-                   (ej. "Cota_Embalse_InPit") → se grafica como línea punteada
-                   en el eje principal (msnm), junto a los piezómetros.
-               Ambas son un solo valor diario para todo el sitio (no por PZ),
-               y aparecen como checkboxes para activar/desactivar en el
-               gráfico de Análisis Temporal. Para agregar una
-               lectura nueva, agrega una fila nueva y llena solo las columnas
-               que tengas ese día — el resto se puede dejar en blanco.
+   Los enlaces de Google Sheets van en el archivo dashboard_config.js (aparte de
+   este HTML) para que no se pierdan al reemplazar el dashboard por una versión nueva.
+   Hoja Maestro:  ID, Tipo, Este, Norte, Ubicacion  [+ opcional: Contencion = SI]
+     · Cada piezómetro con Este/Norte (UTM PSAD56) se ubica solo sobre el plano.
+     · Si la hoja trae la columna "Contencion", esos piezómetros forman el grupo
+       Contención Hidráulica; si no, se usa la lista HIDRAULICA_IDS de abajo.
+   Hoja Lecturas: formato ANCHO — "Fecha" + una columna por piezómetro (ID como
+     encabezado) + opcionales "Precipitacion_mm" y "Cota_Embalse_InPit" (valor
+     diario único del sitio). Encabezados que no coincidan con un ID se ignoran.
    ========================================================================== */
 const CONFIG = {
   USE_GOOGLE_SHEETS: true,
   MAESTRO_CSV_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6KrH9GrY2eAFYOEOqXq0NKL5IupZ_Yj_MwzoJ2yRiZtSoc4V4okaSvF_2Yakgow/pub?gid=1928036866&single=true&output=csv",
-  LECTURAS_CSV_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6KrH9GrY2eAFYOEOqXq0NKL5IupZ_Yj_MwzoJ2yRiZtSoc4V4okaSvF_2Yakgow/pub?gid=572458879&single=true&output=csv",
+  LECTURAS_CSV_URL: "",https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6KrH9GrY2eAFYOEOqXq0NKL5IupZ_Yj_MwzoJ2yRiZtSoc4V4okaSvF_2Yakgow/pub?gid=572458879&single=true&output=csv
   TREND_WINDOW_DAYS: 30,
   TREND_EPSILON_M: 0.10,
   HIDRAULICA_COTA: 3690,
@@ -464,21 +529,22 @@ const CONFIG = {
     'VW17-03','VW-DH-2103','PP-16','PC-ANG-2301'
   ],
 };
+/* Los enlaces a Google Sheets pueden ir en dashboard_config.js (archivo aparte)
+   para no perderlos cuando se reemplace este HTML por una versión nueva. */
+if(typeof window.DASHBOARD_CONFIG === 'object' && window.DASHBOARD_CONFIG) Object.assign(CONFIG, window.DASHBOARD_CONFIG);
 
-/* ---- Transformación UTM -> % de la imagen -----------------------------
-   Calculada directamente desde la grilla UTM impresa en el plano
-   (762500/763000/763500/764000 Este y 9251500/9252000/9252500 Norte),
-   detectando la posición en píxeles de cada marca sobre la imagen original
-   (3869 x 3341 px). No requiere puntos de control manuales.               */
-const GRID = {
-  imgW: 3869, imgH: 3341,
-  x0px: 385.5, x0utm: 762500, pxPerMeterX: 3221/1500,
-  y0px: 1015.5, y0utm: 9252500, pxPerMeterY: 2148/1000,
-};
+/* ---- Transformación UTM -> % del plano --------------------------------
+   La ortofoto (topografia_data.js → TOPO) está georreferenciada por sus
+   límites UTM, así que cualquier piezómetro del Maestro con Este/Norte se
+   ubica solo, sin puntos de control manuales.                              */
+const TOPO_W = TOPO.maxE - TOPO.minE;   // ancho del plano en metros
+const TOPO_H = TOPO.maxN - TOPO.minN;   // alto del plano en metros
 function utmToPercent(este, norte){
-  const px = GRID.x0px + (este - GRID.x0utm) * GRID.pxPerMeterX;
-  const py = GRID.y0px - (norte - GRID.y0utm) * GRID.pxPerMeterY;
-  return { left: (px / GRID.imgW) * 100, top: (py / GRID.imgH) * 100 };
+  return { left: (este - TOPO.minE) / TOPO_W * 100, top: (TOPO.maxN - norte) / TOPO_H * 100 };
+}
+function coordOk(m){
+  return Number.isFinite(m.este) && Number.isFinite(m.norte) &&
+    m.este>=TOPO.minE && m.este<=TOPO.maxE && m.norte>=TOPO.minN && m.norte<=TOPO.maxN;
 }
 
 /* ---- Clasificación de tipo de instrumento -------------------------------- */
@@ -517,6 +583,14 @@ function generateDistinctColor(i){
   const s = satBand[i % satBand.length];
   const l = lightBand[i % lightBand.length];
   return `hsl(${hue.toFixed(1)} ${s}% ${l}%)`;
+}
+
+/* Piezómetros de Contención Hidráulica: si el Maestro (Google Sheets) trae una columna
+   "Contencion" con SI/X/1 se usa esa; si no, la lista HIDRAULICA_IDS de CONFIG. */
+function getHidIds(){
+  const valid = new Set(STATE.maestro.map(m=>m.id));
+  const ids = STATE.maestroTieneColHid ? STATE.maestro.filter(m=>m.hid).map(m=>m.id) : CONFIG.HIDRAULICA_IDS;
+  return ids.filter(id=>valid.has(id));
 }
 
 function computeTrend(pzId){
@@ -561,22 +635,32 @@ function csvParse(text){
   return rows.filter(r=>r.length>1 || (r[0]&&r[0].trim()!==''));
 }
 async function fetchCSV(url){
-  const res = await fetch(url);
+  // Evita que el navegador o Google entreguen una copia vieja de la hoja publicada
+  const u = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+  const res = await fetch(u, {cache:'no-store'});
+  if(!res.ok) throw new Error('HTTP '+res.status);
   const text = await res.text();
   return csvParse(text);
 }
+const num = v => parseFloat(String(v==null?'':v).replace(',','.'));
+const isYes = v => /^(si|sí|s|x|1|true|yes|y)$/i.test(String(v==null?'':v).trim());
 
 async function loadData(){
+  let sheetsOk = false;
   if(CONFIG.USE_GOOGLE_SHEETS && CONFIG.MAESTRO_CSV_URL && CONFIG.LECTURAS_CSV_URL){
+   try{
     const [mRows, lRows] = await Promise.all([fetchCSV(CONFIG.MAESTRO_CSV_URL), fetchCSV(CONFIG.LECTURAS_CSV_URL)]);
-    // ---- Maestro: ID, Tipo, Este, Norte, Ubicacion ----
+    // ---- Maestro: ID, Tipo, Este, Norte, Ubicacion [, Contencion] ----
     const mHeader = mRows[0].map(h=>h.trim().toLowerCase());
     const idx = k => mHeader.indexOf(k);
-    STATE.maestro = mRows.slice(1).filter(r=>r[0]).map(r=>({
-      id:r[idx('id')], tipo:r[idx('tipo')],
-      este:parseFloat(r[idx('este')]), norte:parseFloat(r[idx('norte')]),
-      ubicacion:r[idx('ubicacion')]
+    const hidCol = mHeader.findIndex(h=>/contenci|hidr[aá]ul/.test(h));   // columna opcional
+    STATE.maestro = mRows.slice(1).filter(r=>r[0] && r[0].trim()).map(r=>({
+      id:r[idx('id')].trim(), tipo:r[idx('tipo')],
+      este:num(r[idx('este')]), norte:num(r[idx('norte')]),
+      ubicacion:r[idx('ubicacion')],
+      hid: hidCol>=0 ? isYes(r[hidCol]) : false
     }));
+    STATE.maestroTieneColHid = hidCol>=0 && STATE.maestro.some(m=>m.hid);
     // ---- Lecturas: formato ANCHO -> Fecha | PZ1 | PZ2 | ... | Precipitacion_mm | Cota_Embalse_InPit ----
     const lHeader = lRows[0];
     const fechaCol = lHeader.findIndex(h=>h.trim().toLowerCase()==='fecha');
@@ -627,7 +711,15 @@ async function loadData(){
     cotaEmbalse.sort((a,b)=> a[0]<b[0]?-1:1);
     STATE.series = series;
     STATE.aux = { precipitacion, cotaEmbalse };
-  } else {
+    sheetsOk = true;
+   } catch(err){
+    console.error('No se pudo leer Google Sheets:', err);
+    const b = document.getElementById('dataBanner');
+    b.style.display = 'block';
+    b.textContent = '⚠ No se pudo leer Google Sheets (' + err.message + '). Se muestran los datos embebidos en el archivo, que pueden estar desactualizados.';
+   }
+  }
+  if(!sheetsOk){
     STATE.maestro = PIEZO_DATA.maestro;
     STATE.series = PIEZO_DATA.series;
     STATE.aux = PIEZO_DATA.aux || { precipitacion:[], cotaEmbalse:[] };
@@ -665,6 +757,7 @@ function renderMarkers(){
   layer.innerHTML='';
   const tooltip = document.getElementById('tooltip');
   STATE.maestro.forEach(m=>{
+    if(!coordOk(m)) return;   // sin coordenadas válidas o fuera del plano: no se dibuja (se avisa arriba)
     const pos = utmToPercent(m.este, m.norte);
     const trend = computeTrend(m.id);
     const cls = trendClass(trend.delta);
@@ -752,7 +845,7 @@ function renderMapPzList(filter=''){
       const lab = document.createElement('label');
       const checked = STATE.mapVisible.has(m.id) ? 'checked' : '';
       lab.innerHTML = `
-        <span class="pz-left"><span class="swatch" style="background:var(--${cls==='nodata'?'nodata':cls})"></span><span class="name">${m.id}</span></span>
+        <span class="pz-left"><span class="swatch" style="background:var(--${cls==='nodata'?'nodata':cls})"></span><span class="name">${m.id}${coordOk(m)?'':' <small style="color:var(--text-faint)">(sin ubicación)</small>'}</span></span>
         <input type="checkbox" ${checked} data-pz="${m.id}">`;
       lab.querySelector('input').addEventListener('change', e=> setMapVisibility(m.id, e.target.checked));
       list.appendChild(lab);
@@ -776,32 +869,127 @@ function applyLabelScale(){ document.getElementById('markersLayer').style.setPro
 document.getElementById('labelSizeUp').addEventListener('click', ()=>{ labelScale = Math.min(2.4, +(labelScale+0.15).toFixed(2)); applyLabelScale(); });
 document.getElementById('labelSizeDown').addEventListener('click', ()=>{ labelScale = Math.max(0.5, +(labelScale-0.15).toFixed(2)); applyLabelScale(); });
 
+/* Dibuja sobre la imagen exportada lo que vive fuera del plano desplazable:
+   coordenadas UTM, barra de escala, nivel de agua y fecha. */
+function drawExportOverlays(cv, s){
+  const ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
+  ctx.setTransform(1,0,0,1,0,0);
+  const mono = '"IBM Plex Mono",Consolas,monospace';
+  const chip = (txt, x, y, anchor, fg)=>{
+    ctx.font = `600 ${10*s}px ${mono}`;
+    const w = ctx.measureText(txt).width + 8*s, h = 14*s;
+    const x0 = anchor==='center' ? x - w/2 : anchor==='right' ? x - w : x;
+    ctx.fillStyle = 'rgba(255,255,255,.88)'; ctx.fillRect(x0, y - h/2, w, h);
+    ctx.fillStyle = fg || '#16233f'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    ctx.fillText(txt, x0 + 4*s, y);
+    return {x0, w, h};
+  };
+  gridLabelList().forEach(l=>{
+    if(l.side==='e') chip(l.t, l.pos*s, H - 9*s, 'center');
+    else chip(l.t, 4*s, l.pos*s, 'left');
+  });
+  const sb = scaleBarInfo();
+  if(sb){
+    const bw = sb.px*s, x1 = W - 12*s, x0 = x1 - bw, y = H - 30*s;
+    ctx.fillStyle = 'rgba(255,255,255,.88)'; ctx.fillRect(x0 - 6*s, y - 20*s, bw + 12*s, 30*s);
+    ctx.strokeStyle = '#16233f'; ctx.lineWidth = 1.5*s;
+    ctx.beginPath(); ctx.moveTo(x0, y - 4*s); ctx.lineTo(x0, y + 3*s); ctx.lineTo(x1, y + 3*s); ctx.lineTo(x1, y - 4*s); ctx.stroke();
+    ctx.fillStyle = '#16233f'; ctx.font = `600 ${10*s}px ${mono}`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(sb.L + ' m', (x0 + x1)/2, y - 8*s);
+  }
+  const stamp = 'Piezometría · Cerro Corona · ' + new Date().toISOString().slice(0,10) + (WATER.z!=null ? ' · nivel de agua ' + WATER.z + ' msnm' : '');
+  chip(stamp, W - 6*s, 12*s, 'right');
+}
+/* Exporta el plano tal como está en pantalla (zoom, desplazamiento, capas, piezómetros visibles y
+   etiquetas ya separadas) dibujándolo directamente en un canvas: no depende de librerías externas. */
+function exportMapCanvas(s){
+  const o = mapOuterEl, vw = o.clientWidth, vh = o.clientHeight;
+  const k = kpx(), kz = k * zoomLevel, sl = o.scrollLeft, st = o.scrollTop;
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(vw*s); cv.height = Math.round(vh*s);
+  const ctx = cv.getContext('2d');
+  const ui = topoUI(), pal = CPAL[ui.col] || CPAL.marron;
+  const mono = '"IBM Plex Mono",Consolas,monospace';
+  ctx.fillStyle = '#FBFCFE'; ctx.fillRect(0, 0, cv.width, cv.height);
+
+  // 1) Ortofoto (solo el tramo visible)
+  const img = $id('mapImg'), cW = TOPO_W*kz, cH = TOPO_H*kz;
+  if(ui.orto && img.complete && img.naturalWidth){
+    const x0 = Math.max(0, sl), y0 = Math.max(0, st), x1 = Math.min(cW, sl+vw), y1 = Math.min(cH, st+vh);
+    if(x1 > x0 && y1 > y0){
+      ctx.globalAlpha = ui.op; ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, x0/cW*img.naturalWidth, y0/cH*img.naturalHeight, (x1-x0)/cW*img.naturalWidth, (y1-y0)/cH*img.naturalHeight,
+                    (x0-sl)*s, (y0-st)*s, (x1-x0)*s, (y1-y0)*s);
+      ctx.globalAlpha = 1;
+    }
+  }
+  // 2) Nivel de agua y curvas (coordenadas en decímetros locales → píxeles)
+  const a = 0.1*kz*s;
+  ctx.save();
+  ctx.setTransform(a, 0, 0, -a, ((CONT.E0-TOPO.minE)*kz - sl)*s, ((TOPO.maxN-CONT.N0)*kz - st)*s);
+  ctx.lineJoin = 'round';
+  if(WATER.z != null){
+    const tr = +$id('wTr').value, pw = new Path2D(topo.pw.getAttribute('d'));
+    ctx.globalAlpha = (100-tr)/100; ctx.fillStyle = '#29B6F6'; ctx.fill(pw, 'evenodd');
+    ctx.globalAlpha = Math.max(.3, (100-tr)/100); ctx.strokeStyle = '#0277BD'; ctx.lineWidth = 1.6*10/kz; ctx.stroke(pw);
+  }
+  const wd = {10:1.4, 5:0.9, 1:0.5};
+  [1,5,10].forEach(L=>{
+    if(!ui['c'+L]) return;
+    ctx.globalAlpha = L===10 ? .95 : L===5 ? .8 : (ui.orto ? .5 : .6);
+    ctx.strokeStyle = pal[L]; ctx.lineWidth = wd[L]*10/kz;
+    ctx.stroke(new Path2D(topo.paths[L].getAttribute('d')));
+  });
+  ctx.restore(); ctx.globalAlpha = 1;
+  // 3) Cuadrícula y cotas de las curvas
+  const T = computeTopoLabels(kz);
+  ctx.strokeStyle = 'rgba(11,31,77,.45)'; ctx.lineWidth = 1*s; ctx.setLineDash([3*s, 5*s]);
+  T.gridE.forEach(e=>{ const x = ((e-TOPO.minE)*kz - sl)*s; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, cv.height); ctx.stroke(); });
+  T.gridN.forEach(n=>{ const y = ((TOPO.maxN-n)*kz - st)*s; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(cv.width, y); ctx.stroke(); });
+  ctx.setLineDash([]);
+  ctx.font = `600 ${9.5*s}px ${mono}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  T.labs.forEach(l=>{
+    const x = (l.x*kz - sl)*s, y = (l.y*kz - st)*s;
+    if(x < 0 || y < 0 || x > cv.width || y > cv.height) return;
+    ctx.lineWidth = 3*s; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.strokeText(l.z, x, y);
+    ctx.fillStyle = pal.lab; ctx.fillText(l.z, x, y);
+  });
+  // 4) Piezómetros y sus etiquetas (posiciones reales del DOM, ya sin solapes)
+  const r0 = o.getBoundingClientRect(), ox = r0.left + o.clientLeft, oy = r0.top + o.clientTop;
+  const showLab = $id('toggleLabels').checked;
+  document.querySelectorAll('#markersLayer .marker-wrap').forEach(w=>{
+    if(w.classList.contains('hidden-pz') || w.classList.contains('hidden-type')) return;
+    const dot = w.querySelector('.marker'), r = dot.getBoundingClientRect();
+    const cx = (r.left + r.width/2 - ox)*s, cy = (r.top + r.height/2 - oy)*s;
+    if(cx < -20*s || cy < -20*s || cx > cv.width + 20*s || cy > cv.height + 20*s) return;
+    ctx.beginPath(); ctx.arc(cx, cy, (r.width/2 - 1)*s, 0, Math.PI*2);
+    ctx.fillStyle = getComputedStyle(dot).backgroundColor; ctx.fill();
+    ctx.lineWidth = 2*s; ctx.strokeStyle = 'rgba(10,14,18,.85)'; ctx.stroke();
+    if(!showLab) return;
+    w.querySelectorAll('.marker-label b, .marker-label span').forEach(el=>{
+      const er = el.getBoundingClientRect(), cs = getComputedStyle(el);
+      ctx.font = `${cs.fontWeight} ${parseFloat(cs.fontSize)*s}px ${cs.fontFamily}`;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+      const x = (er.left - ox)*s, y = (er.top + er.height/2 - oy)*s;
+      ctx.lineWidth = 3.2*s; ctx.strokeStyle = '#000'; ctx.strokeText(el.textContent, x, y);
+      ctx.fillStyle = cs.color; ctx.fillText(el.textContent, x, y);
+    });
+  });
+  // 5) Coordenadas, escala, fecha
+  drawExportOverlays(cv, s);
+  return cv;
+}
 document.getElementById('mapExport').addEventListener('click', async ()=>{
   const btn = document.getElementById('mapExport');
-  const mapOuterEl2 = document.getElementById('mapOuter');
-  if(typeof html2canvas === 'undefined'){
-    alert('No se pudo cargar la librería de exportación (html2canvas.min.js). Verifica que ese archivo esté en la misma carpeta que este HTML.');
-    return;
-  }
   btn.disabled = true;
   const originalText = btn.textContent;
   btn.textContent = '⏳ Generando…';
   try{
-    // Recalcula el anti-solape justo antes de capturar, por si algo cambió.
-    resolveLabelOverlaps();
+    resolveLabelOverlaps();                 // separa etiquetas justo antes de exportar
     await new Promise(r=>setTimeout(r,60));
-    const canvas = await html2canvas(mapOuterEl2, {
-      x: mapOuterEl2.scrollLeft,
-      y: mapOuterEl2.scrollTop,
-      width: mapOuterEl2.clientWidth,
-      height: mapOuterEl2.clientHeight,
-      scrollX: 0, scrollY: 0,
-      backgroundColor: '#0b0e12',
-      scale: 2,
-      useCORS: true,
-    });
+    const canvas = exportMapCanvas(2);
     const a = document.createElement('a');
-    a.href = canvas.toDataURL('image/png',1);
+    a.href = canvas.toDataURL('image/png');
     a.download = `plano_piezometros_${new Date().toISOString().slice(0,10)}.png`;
     a.click();
   } catch(err){
@@ -839,7 +1027,7 @@ let chartTimeUnit = 'month';
 document.getElementById('chartTimeUnit').addEventListener('change', e=>{ chartTimeUnit = e.target.value; updateChart(); });
 document.getElementById('chartShowMarkers').addEventListener('change', ()=>{ updateChart(); });
 document.getElementById('presetHidraulica').addEventListener('click', ()=>{
-  const idsSet = new Set(CONFIG.HIDRAULICA_IDS);
+  const idsSet = new Set(getHidIds());
   // Asegura que ningún filtro por tipo esté ocultando el grupo
   document.querySelectorAll('.type-filters input[type=checkbox]').forEach(cb=>{
     cb.checked = true;
@@ -848,6 +1036,7 @@ document.getElementById('presetHidraulica').addEventListener('click', ()=>{
   document.querySelectorAll('.marker-wrap').forEach(w=> w.classList.remove('hidden-type'));
   STATE.maestro.forEach(m=> setMapVisibility(m.id, idsSet.has(m.id)));
   renderMapPzList(document.getElementById('mapPzSearch').value);
+  fitToVisible();
 });
 function showTooltip(m, trend, ev){
   const tooltip = document.getElementById('tooltip');
@@ -881,21 +1070,271 @@ function syncMapColumnWidth(){
   const w = rect.width / zoomLevel;
   document.querySelectorAll('.map-sync-width').forEach(el=>{ el.style.width = w+'px'; el.style.maxWidth = w+'px'; });
 }
-window.addEventListener('resize', ()=> { syncMapColumnWidth(); scheduleLabelDeclutter(); });
-document.getElementById('mapImg').addEventListener('load', syncMapColumnWidth);
+window.addEventListener('resize', ()=> { syncMapColumnWidth(); updateTopoScale(); updateGridOverlay(); scheduleLabelDeclutter(); });
+document.getElementById('mapImg').addEventListener('load', ()=>{ syncMapColumnWidth(); updateTopoScale(); });
 
 function applyZoom(){
   document.getElementById('mapScale').style.transform = `scale(${zoomLevel})`;
   const counter = 1/zoomLevel;
   document.querySelectorAll('.marker-wrap').forEach(w=>{ w.style.transform = `translate(-50%,-50%) scale(${counter})`; });
+  updateTopoScale();
+  updateGridOverlay();
   scheduleLabelDeclutter();
 }
+
+/* ======================================================================
+   TOPOGRAFÍA: curvas de nivel (CAD), cuadrícula UTM, escala y nivel de agua
+   ====================================================================== */
+const $id = id => document.getElementById(id);
+const SVGNS = 'http://www.w3.org/2000/svg';
+const CPAL = {
+  marron:  {10:'#5C3A1A', 5:'#8A6240', 1:'#B89A7C', lab:'#5C3A1A'},
+  gris:    {10:'#3F4652', 5:'#6B7380', 1:'#A3AAB5', lab:'#3F4652'},
+  amarillo:{10:'#E0A800', 5:'#F2C744', 1:'#F7DC8A', lab:'#8A6500'},
+};
+let topo = null, contLab = [];
+function kpx(){ const sc = $id('mapScale'); return sc && sc.offsetWidth ? sc.offsetWidth / TOPO_W : 0; } // px por metro con zoom = 1
+function niceStep(span){ const raw = span/4.5, st=[1,2,5,10,20,25,50,100,200,250,500,1000,2000]; return st.find(v=>v>=raw) || 2000; }
+function fmtUtm(v){ return Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g,' '); }
+function topoUI(){
+  return { orto:$id('mOrto').checked, op:$id('mOrtoOp').value/100, c10:$id('mC10').checked, c5:$id('mC5').checked,
+           c1:$id('mC1').checked, cl:$id('mCL').checked, col:$id('mCol').value, grid:$id('mGrid').checked };
+}
+function buildTopo(){
+  const svg = $id('topoSvg');
+  svg.setAttribute('viewBox', `0 0 ${TOPO_W} ${TOPO_H}`);
+  svg.innerHTML = '';
+  const mk = (n, attrs)=>{ const el = document.createElementNS(SVGNS, n); for(const k in attrs) el.setAttribute(k, attrs[k]); return el; };
+  // Las curvas vienen en decímetros locales (E0,N0): se pasan a metros del plano con una sola matriz
+  const tf = `matrix(0.1,0,0,-0.1,${CONT.E0 - TOPO.minE},${TOPO.maxN - CONT.N0})`;
+  const gWater = mk('g', {transform: tf});
+  const pw = mk('path', {fill:'#29B6F6', 'fill-rule':'evenodd', stroke:'#0277BD'});
+  gWater.appendChild(pw);
+  const gC = mk('g', {transform: tf});
+  const lv = {1:'', 5:'', 10:''};
+  contLab = [];
+  Object.entries(CONT.z).forEach(([z, lines])=>{
+    const zi = +z, L = zi%10===0 ? 10 : zi%5===0 ? 5 : 1;
+    lines.forEach(d=>{
+      let s = `M${d[0]} ${d[1]}`;
+      for(let i=2;i<d.length;i+=2) s += `l${d[i]} ${d[i+1]}`;
+      lv[L] += s;
+      if(L>=5 && d.length>20){
+        let xx=d[0], yy=d[1]; const mid = Math.floor(d.length/4)*2;
+        for(let i=2;i<=mid;i+=2){ xx+=d[i]; yy+=d[i+1]; }
+        contLab.push({z:zi, L, e:CONT.E0 + xx/10, n:CONT.N0 + yy/10});
+      }
+    });
+  });
+  const paths = {};
+  [1,5,10].forEach(L=>{ const p = mk('path', {d:lv[L], fill:'none', 'stroke-linejoin':'round'}); gC.appendChild(p); paths[L] = p; });
+  const gGrid = mk('g', {}), gLab = mk('g', {});
+  [gWater, gC, gGrid, gLab].forEach(g=>svg.appendChild(g));
+  topo = {svg, pw, paths, gWater, gGrid, gLab};
+}
+function applyTopoLayers(){
+  const ui = topoUI();
+  const img = $id('mapImg');
+  img.style.display = ui.orto ? '' : 'none';
+  img.style.opacity = ui.op;
+  if(topo){
+    const pal = CPAL[ui.col] || CPAL.marron;
+    [1,5,10].forEach(L=>{
+      const p = topo.paths[L];
+      p.style.display = ui['c'+L] ? '' : 'none';
+      p.setAttribute('stroke', pal[L]);
+      p.setAttribute('stroke-opacity', L===10 ? .95 : L===5 ? .8 : (ui.orto ? .5 : .6));
+    });
+    const tr = +$id('wTr').value;
+    topo.pw.setAttribute('fill-opacity', (100-tr)/100);
+    topo.pw.setAttribute('stroke-opacity', Math.max(.3, (100-tr)/100));
+    topo.gWater.style.display = WATER.z!=null ? '' : 'none';
+  }
+  updateTopoScale();
+  updateGridOverlay();
+}
+/* Mantiene el grosor de las líneas constante en pantalla, sin importar el zoom */
+function updateTopoScale(){
+  if(!topo) return;
+  const k = kpx(); if(!k) return;
+  const kz = k * zoomLevel;
+  const wd = {10:1.4, 5:0.9, 1:0.5};
+  // Las curvas viven en un grupo escalado 0.1 (decímetros → metros): 1 unidad local = 0.1 m, por eso ×10
+  [1,5,10].forEach(L=> topo.paths[L].setAttribute('stroke-width', wd[L]/kz*10));
+  topo.pw.setAttribute('stroke-width', 1.6/kz*10);
+  updateScalebar();
+  scheduleTopoLabels();
+}
+let _topoLabRAF = null;
+function scheduleTopoLabels(){
+  if(_topoLabRAF) clearTimeout(_topoLabRAF);
+  _topoLabRAF = setTimeout(()=>{ _topoLabRAF = null; rebuildTopoLabels(); }, 90);
+}
+/* Calcula qué líneas de cuadrícula y qué cotas de curvas se dibujan según el zoom (se usa en pantalla y al exportar) */
+function computeTopoLabels(kz){
+  const ui = topoUI(), px = v => v/kz;
+  const out = {gridE:[], gridN:[], labs:[], ui};
+  if(ui.grid){
+    const st = niceStep(TOPO_W / zoomLevel);
+    for(let e=Math.ceil(TOPO.minE/st)*st; e<=TOPO.maxE; e+=st) out.gridE.push(e);
+    for(let n=Math.ceil(TOPO.minN/st)*st; n<=TOPO.maxN; n+=st) out.gridN.push(n);
+  }
+  if(ui.cl && (ui.c10 || ui.c5)){
+    const minL = ui.c10 ? 10 : 5;
+    const step = minL===5 && kz>=1.5 ? 5 : kz>=1.5 ? 10 : kz>=0.7 ? 20 : kz>=0.35 ? 50 : 100;
+    const used = [], dx = px(70), dy = px(18);
+    contLab.forEach(l=>{
+      if(l.L < minL || l.z % step !== 0) return;
+      const x = l.e - TOPO.minE, y = TOPO.maxN - l.n;
+      if(x<0 || y<0 || x>TOPO_W || y>TOPO_H) return;
+      if(used.some(u=>Math.abs(u[0]-x)<dx && Math.abs(u[1]-y)<dy)) return;
+      used.push([x,y]);
+      out.labs.push({x, y, z:l.z});
+    });
+  }
+  return out;
+}
+function rebuildTopoLabels(){
+  if(!topo) return;
+  const k = kpx(); if(!k) return;
+  const kz = k * zoomLevel, px = v => v/kz;
+  const T = computeTopoLabels(kz), pal = CPAL[T.ui.col] || CPAL.marron;
+  let g = '';
+  T.gridE.forEach(e=>{ const x = e - TOPO.minE; g += `<line x1="${x}" y1="0" x2="${x}" y2="${TOPO_H}"/>`; });
+  T.gridN.forEach(n=>{ const y = TOPO.maxN - n; g += `<line x1="0" y1="${y}" x2="${TOPO_W}" y2="${y}"/>`; });
+  topo.gGrid.setAttribute('stroke', '#0B1F4D');
+  topo.gGrid.setAttribute('stroke-opacity', '.45');
+  topo.gGrid.setAttribute('stroke-width', px(1));
+  topo.gGrid.setAttribute('stroke-dasharray', `${px(3)} ${px(5)}`);
+  topo.gGrid.innerHTML = g;
+  topo.gLab.innerHTML = T.labs.map(l=>
+    `<text x="${l.x}" y="${l.y}" font-size="${px(9.5)}" font-weight="600" text-anchor="middle" dominant-baseline="middle" fill="${pal.lab}" paint-order="stroke" stroke="#FFFFFF" stroke-opacity=".9" stroke-width="${px(3)}" stroke-linejoin="round">${l.z}</text>`).join('');
+}
+/* Rótulos de coordenadas pegados al borde visible del plano (E abajo, N a la izquierda) */
+function gridLabelList(){
+  const out = [];
+  if(!$id('mGrid').checked) return out;
+  const k = kpx(); if(!k) return out;
+  const kz = k * zoomLevel, o = mapOuterEl;
+  const vw = o.clientWidth, vh = o.clientHeight;
+  const e0 = TOPO.minE + o.scrollLeft/kz, e1 = TOPO.minE + (o.scrollLeft+vw)/kz;
+  const n1 = TOPO.maxN - o.scrollTop/kz,  n0 = TOPO.maxN - (o.scrollTop+vh)/kz;
+  const st = niceStep(TOPO_W / zoomLevel);
+  for(let e=Math.ceil(Math.max(e0,TOPO.minE)/st)*st; e<=Math.min(e1,TOPO.maxE); e+=st)
+    out.push({t:fmtUtm(e)+' E', side:'e', pos:(e-TOPO.minE)*kz - o.scrollLeft});
+  for(let n=Math.ceil(Math.max(n0,TOPO.minN)/st)*st; n<=Math.min(n1,TOPO.maxN); n+=st)
+    out.push({t:fmtUtm(n)+' N', side:'n', pos:(TOPO.maxN-n)*kz - o.scrollTop});
+  return out;
+}
+function updateGridOverlay(){
+  const ov = $id('gridOverlay'); if(!ov) return;
+  ov.innerHTML = gridLabelList().map(l=> l.side==='e'
+    ? `<span class="gl e" style="left:${l.pos}px">${l.t}</span>`
+    : `<span class="gl n" style="top:${l.pos}px">${l.t}</span>`).join('');
+}
+function scaleBarInfo(){
+  const k = kpx(); if(!k) return null;
+  const kz = k * zoomLevel;
+  const L = [10,20,25,50,100,200,250,500,1000].find(v=>v*kz>=80) || 1000;
+  return {L, px: L*kz};
+}
+function updateScalebar(){
+  const s = scaleBarInfo(); if(!s) return;
+  $id('scalebarBar').style.width = s.px+'px';
+  $id('scalebarTxt').textContent = s.L+' m';
+}
+
+/* ---- Ajustar el plano a los piezómetros visibles ---- */
+function fitToVisible(){
+  const k = kpx(); if(!k) return;
+  const pts = STATE.maestro.filter(m=> coordOk(m) && STATE.mapVisible.has(m.id) && STATE.typeVisibility[classifyTipo(m.tipo)]!==false);
+  if(!pts.length) return;
+  const es = pts.map(m=>m.este), ns = pts.map(m=>m.norte);
+  const minE=Math.min(...es), maxE=Math.max(...es), minN=Math.min(...ns), maxN=Math.max(...ns);
+  const w = Math.max(maxE-minE, 120) + 160, h = Math.max(maxN-minN, 120) + 160;
+  const o = mapOuterEl;
+  const need = Math.min(o.clientWidth/w, o.clientHeight/h);
+  zoomLevel = Math.min(12, Math.max(0.6, +(need/k).toFixed(3)));
+  applyZoom();
+  const kz = k * zoomLevel;
+  o.scrollLeft = ((minE+maxE)/2 - TOPO.minE)*kz - o.clientWidth/2;
+  o.scrollTop  = (TOPO.maxN - (minN+maxN)/2)*kz - o.clientHeight/2;
+  updateGridOverlay();
+}
+function fitAll(){ zoomLevel = 1; applyZoom(); mapOuterEl.scrollTo(0,0); updateGridOverlay(); }
+
+/* ---- Nivel de agua en el tajo (espejo a una cota dada, con área y volumen) ---- */
+const WATER = {z:null};
+let WSEED = null, WMIN = null, WMAX = null;
+const WCACHE = {};
+function decAbs(d){ const a=[]; let x=d[0], y=d[1]; a.push([x,y]); for(let i=2;i<d.length;i+=2){ x+=d[i]; y+=d[i+1]; a.push([x,y]); } return a; }
+function pip(pt, poly){ let c=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const [xi,yi]=poly[i],[xj,yj]=poly[j]; if(((yi>pt[1])!==(yj>pt[1])) && (pt[0]<(xj-xi)*(pt[1]-yi)/(yj-yi)+xi)) c=!c; } return c; }
+function areaOf(poly){ let a=0; for(let i=0,j=poly.length-1;i<poly.length;j=i++) a+=(poly[j][0]+poly[i][0])*(poly[j][1]-poly[i][1]); return Math.abs(a/2)/100; }  // m²
+function initWater(){
+  if(WSEED || !CONT) return;
+  const zs = Object.keys(CONT.z).map(Number).sort((a,b)=>a-b); WMIN = zs[0];
+  const L = CONT.z[WMIN].map(decAbs).sort((a,b)=>b.length-a.length)[0];
+  WSEED = [L.reduce((s,p)=>s+p[0],0)/L.length, L.reduce((s,p)=>s+p[1],0)/L.length];
+  WMAX = WMIN; for(const z of zs){ if(waterGeom(z).ok) WMAX = z; else break; }
+}
+function waterGeom(z){
+  if(WCACHE[z]) return WCACHE[z];
+  const out = {ok:false, d:'', area:0};
+  if(!CONT || !CONT.z[z]){ WCACHE[z]=out; return out; }
+  if(!WSEED) initWater();
+  const loops = CONT.z[z].map(d=>({d, a:decAbs(d)})).filter(o=>o.a.length>3 && Math.hypot(o.a[0][0]-o.a[o.a.length-1][0], o.a[0][1]-o.a[o.a.length-1][1])<30);
+  const main = loops.filter(o=>pip(WSEED,o.a)).sort((a,b)=>areaOf(a.a)-areaOf(b.a))[0];
+  if(!main){ WCACHE[z]=out; return out; }
+  const up = (CONT.z[z+1]||[]).map(decAbs);
+  const holes = loops.filter(o=>o!==main && pip(o.a[0],main.a) && up.some(u=>pip(u[0],o.a)));
+  const path = o=>{ let s=`M${o.d[0]} ${o.d[1]}`; for(let i=2;i<o.d.length;i+=2) s+=`l${o.d[i]} ${o.d[i+1]}`; return s+'Z'; };
+  out.ok = true; out.d = path(main) + holes.map(path).join('');
+  out.area = areaOf(main.a) - holes.reduce((s,h)=>s+areaOf(h.a),0);
+  WCACHE[z] = out; return out;
+}
+function waterVol(z){ let v=0; for(let zz=WMIN; zz<z; zz++){ const a=waterGeom(zz), b=waterGeom(zz+1); if(!a.ok||!b.ok) break; v += (a.area+b.area)/2; } return v; }
+function setWaterLevel(raw, origen){
+  initWater();
+  const info = $id('wInfo');
+  if(isNaN(raw)){ info.textContent = 'Escribe una cota entera, por ejemplo 3650.'; return; }
+  const z = Math.round(raw);
+  $id('wZ').value = z;
+  if(z < WMIN){ info.textContent = `La cota más baja del tajo en la topografía es ${WMIN} msnm.`; return; }
+  if(z > WMAX){ info.textContent = `Por encima de ${WMAX} msnm la curva ya no cierra alrededor del tajo (cota de rebose aprox.). Usa una cota entre ${WMIN} y ${WMAX}.`; return; }
+  const wg = waterGeom(z);
+  WATER.z = z;
+  topo.pw.setAttribute('d', wg.d);
+  info.textContent = `${origen? origen+' · ' : ''}Espejo a ${z} msnm: ${(wg.area/10000).toFixed(1)} ha · volumen aprox. ${(waterVol(z)/1e6).toFixed(2)} Mm³ (desde ${WMIN} msnm)`;
+  applyTopoLayers();
+}
+function clearWater(){ WATER.z = null; topo.pw.setAttribute('d',''); $id('wInfo').textContent=''; applyTopoLayers(); }
+function refreshWaterButtons(){
+  const s = STATE.aux.cotaEmbalse || [];
+  const b = $id('wEmb');
+  b.disabled = !s.length;
+  b.title = s.length ? `Pinta el nivel con la última cota de embalse InPit (${s[s.length-1][1]} msnm, ${s[s.length-1][0]})`
+                     : 'Agrega la columna "Cota_Embalse_InPit" en la hoja Lecturas para usar este botón';
+}
+$id('wGo').addEventListener('click', ()=> setWaterLevel(parseFloat(String($id('wZ').value).replace(',','.'))));
+$id('wZ').addEventListener('keydown', e=>{ if(e.key==='Enter') $id('wGo').click(); });
+$id('wOff').addEventListener('click', clearWater);
+$id('wEmb').addEventListener('click', ()=>{
+  const s = STATE.aux.cotaEmbalse || []; if(!s.length) return;
+  const [f, v] = s[s.length-1];
+  setWaterLevel(v, `Cota embalse InPit ${f}`);
+});
+['mOrto','mOrtoOp','mC10','mC5','mC1','mCL','mCol','mGrid','wTr'].forEach(id=>{
+  $id(id).addEventListener(id==='mOrtoOp'||id==='wTr' ? 'input' : 'change', applyTopoLayers);
+});
+$id('fitVisible').addEventListener('click', fitToVisible);
+$id('fitAll').addEventListener('click', fitAll);
 document.getElementById('zoomIn').addEventListener('click', ()=>{ zoomLevel=Math.min(zoomLevel*1.35,12); applyZoom(); });
 document.getElementById('zoomOut').addEventListener('click', ()=>{ zoomLevel=Math.max(zoomLevel/1.35,0.6); applyZoom(); });
 document.getElementById('zoomReset').addEventListener('click', ()=>{ zoomLevel=1; applyZoom(); document.getElementById('mapOuter').scrollTo(0,0); });
 
 // Zoom con rueda del mouse, centrado en el cursor, aislado al plano (no afecta la página)
 const mapOuterEl = document.getElementById('mapOuter');
+mapOuterEl.addEventListener('scroll', ()=> updateGridOverlay());
 mapOuterEl.addEventListener('wheel', (e)=>{  e.preventDefault();
   e.stopPropagation();
   const rect = mapOuterEl.getBoundingClientRect();
@@ -955,13 +1394,43 @@ function renderChips(){
     if(t.lastDate && daysBetween(t.lastDate, today) > 10) staleCount++;
   });
   const box = document.getElementById('chipsRow');
+  // Contención Hidráulica: nivel promedio y su diferencia respecto a la cota de referencia
+  const hidIds = getHidIds();
+  const hidLv = hidIds.map(id=>computeTrend(id).last).filter(v=>v!==null);
+  let hidChip = '';
+  if(hidIds.length){
+    const avg = hidLv.length ? hidLv.reduce((a,b)=>a+b,0)/hidLv.length : null;
+    const d = avg!==null ? avg - CONFIG.HIDRAULICA_COTA : null;
+    hidChip = `<div class="chip hid" title="Piezómetros de monitoreo de Contención Hidráulica"><div class="n">${avg!==null?avg.toFixed(1):'—'}</div>
+      <div class="l">🛡️ Contención (${hidIds.length} PZ) · prom. msnm<small>${d!==null?(d>0?'+':'')+d.toFixed(1)+' m vs '+CONFIG.HIDRAULICA_COTA:''}</small></div></div>`;
+  }
+  // Cota del embalse InPit y precipitación (si la hoja Lecturas trae esas columnas)
+  let auxChips = '';
+  const emb = STATE.aux.cotaEmbalse || [];
+  if(emb.length){
+    const [f,v] = emb[emb.length-1];
+    auxChips += `<div class="chip emb"><div class="n">${v.toFixed(1)}</div><div class="l">Cota embalse InPit (msnm)<small>${f}</small></div></div>`;
+  }
+  const pr = STATE.aux.precipitacion || [];
+  if(pr.length){
+    const lastD = pr[pr.length-1][0];
+    const sum30 = pr.filter(([f])=> daysBetween(f, lastD) < 30).reduce((a,[,v])=>a+v,0);
+    auxChips += `<div class="chip emb"><div class="n">${sum30.toFixed(0)}</div><div class="l">Precipitación 30 d (mm)<small>hasta ${lastD}</small></div></div>`;
+  }
+  const sinUbic = STATE.maestro.filter(m=>!coordOk(m)).map(m=>m.id);
+  const ubicChip = sinUbic.length
+    ? `<div class="chip warn" title="${sinUbic.join(', ')} — revisa Este/Norte en la hoja Maestro (deben estar en UTM PSAD56 dentro del plano)"><div class="n">${sinUbic.length}</div><div class="l">Sin ubicación en el plano</div></div>` : '';
   box.innerHTML = `
     <div class="chip"><div class="n">${STATE.maestro.length}</div><div class="l">Piezómetros</div></div>
+    ${hidChip}
     <div class="chip up"><div class="n">${up}</div><div class="l">Subiendo</div></div>
     <div class="chip down"><div class="n">${down}</div><div class="l">Bajando</div></div>
     <div class="chip stable"><div class="n">${stable}</div><div class="l">Estables</div></div>
     <div class="chip warn"><div class="n">${staleCount}</div><div class="l">Sin dato &gt;10 días</div></div>
+    ${auxChips}${ubicChip}
   `;
+  const tipos = [...new Set(STATE.maestro.map(m=>classifyTipo(m.tipo)))];
+  document.getElementById('subTitle').textContent = `${STATE.maestro.length} puntos de control · ${tipos.join(', ')}`;
   // (indicador de fuente de datos eliminado de la interfaz por solicitud del usuario)
 }
 
@@ -979,11 +1448,10 @@ function renderWallFilters(){
   });
   box.innerHTML='';
   const hidraulicaBtn = document.createElement('button');
-  hidraulicaBtn.textContent = `🛡️ Contención Hidráulica (${CONFIG.HIDRAULICA_IDS.length})`;
+  hidraulicaBtn.textContent = `🛡️ Contención Hidráulica (${getHidIds().length})`;
   hidraulicaBtn.className = 'hidraulica-chip';
   hidraulicaBtn.addEventListener('click', ()=>{
-    const validIds = new Set(STATE.maestro.map(m=>m.id));
-    STATE.selected = new Set(CONFIG.HIDRAULICA_IDS.filter(id=>validIds.has(id)));
+    STATE.selected = new Set(getHidIds());
     renderPzList(document.getElementById('pzSearch').value);
     updateChart();
   });
@@ -1164,13 +1632,16 @@ function selectSinglePzAndSwitch(pzId){
 let resumenSort = {key:'id', dir:1};
 function buildResumenRows(){
   const today = new Date().toISOString().slice(0,10);
+  const hidSet = new Set(getHidIds());
   return STATE.maestro.map(m=>{
     const t = computeTrend(m.id);
+    const hid = hidSet.has(m.id);
     return {
       id:m.id, tipo:classifyTipo(m.tipo), ubicacion:m.ubicacion||'—',
       ultimo_nivel: t.last, ultima_fecha: t.lastDate,
       dias_sin_dato: t.lastDate ? daysBetween(t.lastDate, today) : null,
       delta_30d: t.delta,
+      hid, delta_hid: (hid && t.last!==null) ? +(t.last - CONFIG.HIDRAULICA_COTA).toFixed(2) : null,
     };
   });
 }
@@ -1178,6 +1649,7 @@ function renderResumen(filter=''){
   let rows = buildResumenRows();
   const f = filter.trim().toLowerCase();
   if(f) rows = rows.filter(r => r.id.toLowerCase().includes(f) || r.tipo.toLowerCase().includes(f) || r.ubicacion.toLowerCase().includes(f));
+  if(document.getElementById('onlyHid').checked) rows = rows.filter(r=>r.hid);
   rows.sort((a,b)=>{
     let va=a[resumenSort.key], vb=b[resumenSort.key];
     if(va===null||va===undefined) va = -Infinity;
@@ -1201,6 +1673,8 @@ function renderResumen(filter=''){
       <td>${r.ultima_fecha||'—'}</td>
       <td class="${staleClass}">${r.dias_sin_dato!==null?r.dias_sin_dato:'—'}</td>
       <td class="${tagClass}">${r.delta_30d!==null?(r.delta_30d>0?'+':'')+r.delta_30d.toFixed(2)+' m '+arrow:'sin dato'}</td>
+      <td>${r.hid?'<span class="tag-hid">🛡️ Contención</span>':''}</td>
+      <td>${r.delta_hid!==null?(r.delta_hid>0?'+':'')+r.delta_hid.toFixed(2):''}</td>
     `;
     tr.addEventListener('click', ()=> selectSinglePzAndSwitch(r.id));
     body.appendChild(tr);
@@ -1216,10 +1690,10 @@ document.querySelectorAll('table.resumen th').forEach(th=>{
 });
 document.getElementById('downloadCsv').addEventListener('click', ()=>{
   const rows = window._resumenRowsCache || [];
-  const header = ['ID','Tipo','Ubicacion','Ultimo_nivel','Fecha','Dias_sin_dato','Delta_30d'];
+  const header = ['ID','Tipo','Ubicacion','Ultimo_nivel','Fecha','Dias_sin_dato','Delta_30d','Contencion_Hidraulica','Delta_vs_cota_contencion'];
   const lines = [header.join(',')];
   rows.forEach(r=>{
-    lines.push([r.id,r.tipo,r.ubicacion,r.ultimo_nivel,r.ultima_fecha,r.dias_sin_dato,r.delta_30d].map(v=>v===null||v===undefined?'':v).join(','));
+    lines.push([r.id,r.tipo,r.ubicacion,r.ultimo_nivel,r.ultima_fecha,r.dias_sin_dato,r.delta_30d,r.hid?'SI':'',r.delta_hid].map(v=>v===null||v===undefined?'':v).join(','));
   });
   const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
   const a = document.createElement('a');
@@ -1235,6 +1709,7 @@ function switchTab(name){
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   document.querySelectorAll('section.tab').forEach(s=>s.classList.toggle('active', s.id===`tab-${name}`));
   if(name==='analisis' && chartInstance) setTimeout(()=>chartInstance.resize(),50);
+  if(name==='ubicacion') setTimeout(()=>{ syncMapColumnWidth(); updateTopoScale(); updateGridOverlay(); scheduleLabelDeclutter(); }, 30);
 }
 document.querySelectorAll('nav.tabs button').forEach(b=>{
   b.addEventListener('click', ()=>switchTab(b.dataset.tab));
@@ -1242,6 +1717,7 @@ document.querySelectorAll('nav.tabs button').forEach(b=>{
 
 document.getElementById('pzSearch').addEventListener('input', e=> renderPzList(e.target.value));
 document.getElementById('resumenSearch').addEventListener('input', e=> renderResumen(e.target.value));
+document.getElementById('onlyHid').addEventListener('change', ()=> renderResumen(document.getElementById('resumenSearch').value));
 document.getElementById('dateFrom').addEventListener('change', updateChart);
 document.getElementById('dateTo').addEventListener('change', updateChart);
 document.getElementById('showHidraulica').addEventListener('change', updateChart);
@@ -1256,6 +1732,9 @@ async function init(){
   renderChips();
   renderTypeFilters();
   renderMarkers();
+  buildTopo();
+  refreshWaterButtons();
+  applyTopoLayers();
   applyZoom();
   renderMapPzList();
   renderPzList();
